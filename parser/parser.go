@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/antoniskalou/glox/ast"
 	"github.com/antoniskalou/glox/token"
@@ -226,11 +227,9 @@ func (p *Parser) consume(typ token.TokenType, message string) (token.Token, erro
 // checks if current token has any of the given types, if so, it
 // consumes the token and returns true.
 func (p *Parser) match(types ...token.TokenType) bool {
-	for _, typ := range types {
-		if p.check(typ) {
-			p.advance()
-			return true
-		}
+	if slices.ContainsFunc(types, p.check) {
+		p.advance()
+		return true
 	}
 
 	return false
