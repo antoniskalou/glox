@@ -60,6 +60,30 @@ func (s *Scanner) scanToken() {
 		s.addToken(Star, nil)
 	case ';':
 		s.addToken(Semicolon, nil)
+	case '!':
+		typ := Bang
+		if s.match('=') {
+			typ = BangEqual
+		}
+		s.addToken(typ, nil)
+	case '=':
+		typ := Equal
+		if s.match('=') {
+			typ = EqualEqual
+		}
+		s.addToken(typ, nil)
+	case '<':
+		typ := Less
+		if s.match('=') {
+			typ = LessEqual
+		}
+		s.addToken(typ, nil)
+	case '>':
+		typ := Greater
+		if s.match('=') {
+			typ = GreaterEqual
+		}
+		s.addToken(typ, nil)
 	default:
 		// hate it, but it is what it is
 		printError(s.line, "unexpected character")
@@ -80,6 +104,19 @@ func (s *Scanner) addToken(typ TokenType, literal any) {
 		Literal: literal,
 		Line:    s.line,
 	})
+}
+
+func (s *Scanner) match(expected byte) bool {
+	if s.isAtEnd() {
+		return false
+	}
+
+	if s.source[s.current] != expected {
+		return false
+	}
+
+	s.current++
+	return true
 }
 
 // did we finish reading?
