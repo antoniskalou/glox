@@ -63,9 +63,18 @@ func run(source string) {
 	scanner := NewScanner(source)
 	tokens := scanner.ScanTokens()
 
-	for _, token := range tokens {
-		fmt.Println(token)
+	parser := NewParser(tokens)
+	expr := parser.Parse()
+
+	if hadError {
+		return
 	}
+
+	ast, err := formatAST(expr)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(ast)
 }
 
 func printError(token Token, message string) {

@@ -27,6 +27,10 @@ func NewParser(tokens []Token) *Parser {
 	}
 }
 
+func (p *Parser) Parse() Expr {
+	return p.expression()
+}
+
 func (p *Parser) expression() Expr {
 	return p.equality()
 }
@@ -125,7 +129,24 @@ func (p *Parser) primary() Expr {
 		return Grouping{expr}
 	}
 
-	return nil
+	panic(parseError(p.peek(), "Expect expression."))
+}
+
+func (p *Parser) synchronize() {
+	p.advance()
+
+	for !p.isAtEnd() {
+		if p.previous().Type == Semicolon {
+			return
+		}
+
+		switch p.peek().Type {
+		case Class, Fun, Var, For, If, While, Print, Return:
+			return
+		}
+
+		p.advance()
+	}
 }
 
 func (p *Parser) consume(typ TokenType, message string) Token {
