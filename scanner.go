@@ -1,5 +1,7 @@
 package main
 
+import "strconv"
+
 type Scanner struct {
 	source string
 	tokens []Token
@@ -97,16 +99,76 @@ func (s *Scanner) scanToken() {
 		// ignore whitespace
 	case '\n':
 		s.line++
+	case '"':
+		s.addString()
 	default:
-		// hate it, but it is what it is
-		printError(s.line, "unexpected character")
+		if isDigit(c) {
+			s.addNumber()
+		} else {
+			// hate it, but it is what it is
+			printError(s.line, "unexpected character")
+		}
 	}
+}
+
+func (s *Scanner) addNumber() {
+	for isDigit(s.peek()) {
+		s.advance()
+	}
+
+	// look for a fractional part
+	if s.peek() == '.' && isDigit(s.peekNext()) {
+		// consume the "."
+		s.advance()
+
+		for isDigit(s.peek()) {
+			s.advance()
+		}
+	}
+
+	f, err := strconv.ParseFloat(s.source[s.start:s.current], 64)
+	if err != nil {
+		// FIXME
+		panic(err)
+	}
+
+	s.addToken(Number, f)
+}
+
+func (s *Scanner) addString() {
+	for s.peek() != '"' && !s.isAtEnd() {
+		// handle multiline strings
+		if s.peek() == '\n' {
+			s.line++
+		}
+		s.advance()
+	}
+
+	if s.isAtEnd() {
+		printError(s.line, "Unterminated string")
+		return
+	}
+
+	s.advance() // the closing "
+
+	// trim surrounding quotes
+	value := s.source[s.start+1 : s.current-1]
+	s.addToken(String, value)
 }
 
 // advances scanner, returns the next char
 func (s *Scanner) advance() byte {
 	s.current++
 	return s.source[s.current-1]
+}
+
+// lookahead 2 bytes
+func (s *Scanner) peekNext() byte {
+	if s.current+1 >= len(s.source) {
+		return '\x00'
+	}
+
+	return s.source[s.current+1]
 }
 
 // checks next byte without advancing scanner
@@ -144,4 +206,8 @@ func (s *Scanner) match(expected byte) bool {
 // did we finish reading?
 func (s *Scanner) isAtEnd() bool {
 	return s.current >= len(s.source)
+}
+
+func isDigit(c byte) bool {
+	return c >= '0' && c <= '9'
 }
