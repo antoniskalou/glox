@@ -30,8 +30,31 @@ func New() *Interpreter {
 	return &Interpreter{}
 }
 
-func (i *Interpreter) Interpret(expr ast.Expr) (any, error) {
-	return evaluate(expr)
+func (i *Interpreter) Interpret(statements []ast.Stmt) error {
+	for _, stmt := range statements {
+		if err := execute(stmt); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func execute(stmt ast.Stmt) error {
+	switch stmt := stmt.(type) {
+	case ast.Expression:
+		if _, err := evaluate(stmt.Expr); err != nil {
+			return err
+		}
+	case ast.Print:
+		val, err := evaluate(stmt.Expr)
+		if err != nil {
+			return err
+		}
+		fmt.Println(val)
+	}
+
+	return nil
 }
 
 func evaluate(expr ast.Expr) (any, error) {

@@ -32,7 +32,14 @@ func New(tokens []token.Token) *Parser {
 /*
 Grammar:
 
-expression → equality ;
+program        → statement* EOF ;
+
+statement      → exprStmt
+               | printStmt ;
+
+exprStmt       → expression ";" ;
+printStmt      → "print" expression ";" ;expression → equality ;
+
 equality → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term → factor ( ( "-" | "+" ) factor )* ;
@@ -41,8 +48,57 @@ unary → ( "!" | "-" ) unary | primary ;
 primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
 */
 
-func (p *Parser) Parse() (ast.Expr, error) {
-	return p.expression()
+func (p *Parser) Parse() ([]ast.Stmt, error) {
+	statements := make([]ast.Stmt, 0)
+
+	for !p.isAtEnd() {
+		stmt, err := p.statement()
+		if err != nil {
+			return nil, err
+		}
+
+		statements = append(statements, stmt)
+	}
+
+	return statements, nil
+}
+
+func (p *Parser) statement() (ast.Stmt, error) {
+	if p.match(token.Print) {
+		return p.printStatement()
+	}
+
+	return p.expressionStatement()
+}
+
+func (p *Parser) printStatement() (ast.Stmt, error) {
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(
+		token.Semicolon, "Expect ';' after expression",
+	); err != nil {
+		return nil, err
+	}
+
+	return ast.Print{Expr: expr}, nil
+}
+
+func (p *Parser) expressionStatement() (ast.Stmt, error) {
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(
+		token.Semicolon, "Expect ';' after expression",
+	); err != nil {
+		return nil, err
+	}
+
+	return ast.Expression{Expr: expr}, nil
 }
 
 func (p *Parser) expression() (ast.Expr, error) {

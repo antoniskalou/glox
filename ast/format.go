@@ -5,7 +5,31 @@ import (
 	"strings"
 )
 
-func Format(expr Expr) (string, error) {
+func FormatMany(statements []Stmt) (string, error) {
+	var b strings.Builder
+	for _, stmt := range statements {
+		s, err := Format(stmt)
+		if err != nil {
+			return "", err
+		}
+
+		b.WriteString(s)
+	}
+	return b.String(), nil
+}
+
+func Format(stmt Stmt) (string, error) {
+	switch stmt := stmt.(type) {
+	case Expression:
+		return parenthesize("expr", stmt.Expr)
+	case Print:
+		return parenthesize("print", stmt.Expr)
+	default:
+		return "", fmt.Errorf("invalid AST statement: %+v", stmt)
+	}
+}
+
+func formatExpr(expr Expr) (string, error) {
 	switch expr := expr.(type) {
 	case Binary:
 		return parenthesize(expr.Operator.Lexeme, expr.Left, expr.Right)
@@ -40,7 +64,7 @@ func parenthesize(name string, exprs ...Expr) (string, error) {
 	for _, expr := range exprs {
 		b.WriteByte(' ')
 
-		s, err := Format(expr)
+		s, err := formatExpr(expr)
 		if err != nil {
 			return "", err
 		}

@@ -76,13 +76,13 @@ func run(source string) error {
 	}
 
 	parser := parser.New(tokens)
-	expr, err := parser.Parse()
+	statements, err := parser.Parse()
 	if err != nil {
 		return err
 	}
 
 	if debug {
-		ast, err := ast.Format(expr)
+		ast, err := ast.FormatMany(statements)
 		if err != nil {
 			return err
 		}
@@ -90,11 +90,5 @@ func run(source string) error {
 	}
 
 	interpreter := interpreter.New()
-	val, err := interpreter.Interpret(expr)
-	if err != nil {
-		return err
-	}
-	fmt.Println(val)
-
-	return nil
+	return interpreter.Interpret(statements)
 }
