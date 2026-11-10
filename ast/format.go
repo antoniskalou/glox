@@ -1,11 +1,11 @@
-package main
+package ast
 
 import (
 	"fmt"
 	"strings"
 )
 
-func formatAST(expr Expr) (string, error) {
+func Format(expr Expr) (string, error) {
 	switch expr := expr.(type) {
 	case Binary:
 		return parenthesize(expr.Operator.Lexeme, expr.Left, expr.Right)
@@ -35,7 +35,7 @@ func parenthesize(name string, exprs ...Expr) (string, error) {
 	for _, expr := range exprs {
 		b.WriteByte(' ')
 
-		s, err := formatAST(expr)
+		s, err := Format(expr)
 		if err != nil {
 			return "", err
 		}

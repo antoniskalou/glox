@@ -1,8 +1,10 @@
-package main
+package scanner
 
 import (
 	"fmt"
 	"strconv"
+
+	"github.com/antoniskalou/glox/token"
 )
 
 type ScanError struct {
@@ -16,7 +18,7 @@ func (e *ScanError) Error() string {
 
 type Scanner struct {
 	source string
-	tokens []Token
+	tokens []token.Token
 	// points to the first character in the lexeme
 	start int
 	// points at the character currently being considered
@@ -25,7 +27,7 @@ type Scanner struct {
 	line int
 }
 
-func NewScanner(source string) *Scanner {
+func New(source string) *Scanner {
 	return &Scanner{
 		source:  source,
 		start:   0,
@@ -34,7 +36,7 @@ func NewScanner(source string) *Scanner {
 	}
 }
 
-func (s *Scanner) ScanTokens() ([]Token, error) {
+func (s *Scanner) ScanTokens() ([]token.Token, error) {
 	for !s.isAtEnd() {
 		// we are the beginning of the next lexeme
 		s.start = s.current
@@ -45,8 +47,8 @@ func (s *Scanner) ScanTokens() ([]Token, error) {
 		}
 	}
 
-	s.tokens = append(s.tokens, Token{
-		Type:    EOF,
+	s.tokens = append(s.tokens, token.Token{
+		Type:    token.EOF,
 		Lexeme:  "",
 		Literal: nil,
 		Line:    s.line,
@@ -59,47 +61,47 @@ func (s *Scanner) scanToken() error {
 	c := s.advance()
 	switch c {
 	case '(':
-		s.addToken(LeftParen, nil)
+		s.addToken(token.LeftParen, nil)
 	case ')':
-		s.addToken(RightParen, nil)
+		s.addToken(token.RightParen, nil)
 	case '{':
-		s.addToken(LeftBrace, nil)
+		s.addToken(token.LeftBrace, nil)
 	case '}':
-		s.addToken(RightBrace, nil)
+		s.addToken(token.RightBrace, nil)
 	case ',':
-		s.addToken(Comma, nil)
+		s.addToken(token.Comma, nil)
 	case '.':
-		s.addToken(Dot, nil)
+		s.addToken(token.Dot, nil)
 	case '-':
-		s.addToken(Minus, nil)
+		s.addToken(token.Minus, nil)
 	case '+':
-		s.addToken(Plus, nil)
+		s.addToken(token.Plus, nil)
 	case '*':
-		s.addToken(Star, nil)
+		s.addToken(token.Star, nil)
 	case ';':
-		s.addToken(Semicolon, nil)
+		s.addToken(token.Semicolon, nil)
 	case '!':
-		typ := Bang
+		typ := token.Bang
 		if s.match('=') {
-			typ = BangEqual
+			typ = token.BangEqual
 		}
 		s.addToken(typ, nil)
 	case '=':
-		typ := Equal
+		typ := token.Equal
 		if s.match('=') {
-			typ = EqualEqual
+			typ = token.EqualEqual
 		}
 		s.addToken(typ, nil)
 	case '<':
-		typ := Less
+		typ := token.Less
 		if s.match('=') {
-			typ = LessEqual
+			typ = token.LessEqual
 		}
 		s.addToken(typ, nil)
 	case '>':
-		typ := Greater
+		typ := token.Greater
 		if s.match('=') {
-			typ = GreaterEqual
+			typ = token.GreaterEqual
 		}
 		s.addToken(typ, nil)
 	case '/':
@@ -109,7 +111,7 @@ func (s *Scanner) scanToken() error {
 				s.advance()
 			}
 		} else {
-			s.addToken(Slash, nil)
+			s.addToken(token.Slash, nil)
 		}
 	case ' ', '\r', '\t':
 		// ignore whitespace
@@ -133,23 +135,23 @@ func (s *Scanner) scanToken() error {
 	return nil
 }
 
-var keywords = map[string]TokenType{
-	"and":    And,
-	"class":  Class,
-	"else":   Else,
-	"false":  False,
-	"for":    For,
-	"fun":    Fun,
-	"if":     If,
-	"nil":    Nil,
-	"or":     Or,
-	"print":  Print,
-	"return": Return,
-	"super":  Super,
-	"this":   This,
-	"true":   True,
-	"var":    Var,
-	"while":  While,
+var keywords = map[string]token.TokenType{
+	"and":    token.And,
+	"class":  token.Class,
+	"else":   token.Else,
+	"false":  token.False,
+	"for":    token.For,
+	"fun":    token.Fun,
+	"if":     token.If,
+	"nil":    token.Nil,
+	"or":     token.Or,
+	"print":  token.Print,
+	"return": token.Return,
+	"super":  token.Super,
+	"this":   token.This,
+	"true":   token.True,
+	"var":    token.Var,
+	"while":  token.While,
 }
 
 func (s *Scanner) addIdentifier() {
@@ -160,7 +162,7 @@ func (s *Scanner) addIdentifier() {
 	text := s.source[s.start:s.current]
 	typ, ok := keywords[text]
 	if !ok {
-		typ = Identifier
+		typ = token.Identifier
 	}
 	s.addToken(typ, nil)
 }
@@ -186,7 +188,7 @@ func (s *Scanner) addNumber() {
 		panic(err)
 	}
 
-	s.addToken(Number, f)
+	s.addToken(token.Number, f)
 }
 
 func (s *Scanner) addString() error {
@@ -210,7 +212,7 @@ func (s *Scanner) addString() error {
 
 	// trim surrounding quotes
 	value := s.source[s.start+1 : s.current-1]
-	s.addToken(String, value)
+	s.addToken(token.String, value)
 
 	return nil
 }
@@ -239,9 +241,9 @@ func (s *Scanner) peek() byte {
 	return s.source[s.current]
 }
 
-func (s *Scanner) addToken(typ TokenType, literal any) {
+func (s *Scanner) addToken(typ token.TokenType, literal any) {
 	text := s.source[s.start:s.current]
-	s.tokens = append(s.tokens, Token{
+	s.tokens = append(s.tokens, token.Token{
 		Type:    typ,
 		Lexeme:  text,
 		Literal: literal,

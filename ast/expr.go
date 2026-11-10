@@ -1,4 +1,6 @@
-package main
+package ast
+
+import "github.com/antoniskalou/glox/token"
 
 type Expr interface {
 	isExpr()
@@ -7,7 +9,7 @@ type Expr interface {
 type Binary struct {
 	Left     Expr
 	Right    Expr
-	Operator Token
+	Operator token.Token
 }
 
 func (Binary) isExpr() {}
@@ -25,7 +27,7 @@ type Literal struct {
 func (Literal) isExpr() {}
 
 type Unary struct {
-	Operator Token
+	Operator token.Token
 	Right    Expr
 }
 

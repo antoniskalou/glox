@@ -6,6 +6,10 @@ import (
 	"io"
 	"log"
 	"os"
+
+	"github.com/antoniskalou/glox/ast"
+	"github.com/antoniskalou/glox/parser"
+	"github.com/antoniskalou/glox/scanner"
 )
 
 // used for skipping code execution that has a known error
@@ -60,13 +64,13 @@ func runPrompt() {
 }
 
 func run(source string) {
-	scanner := NewScanner(source)
+	scanner := scanner.New(source)
 	tokens, err := scanner.ScanTokens()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	parser := NewParser(tokens)
+	parser := parser.New(tokens)
 	expr, err := parser.Parse()
 	if err != nil {
 		log.Fatal(err)
@@ -76,7 +80,7 @@ func run(source string) {
 		return
 	}
 
-	ast, err := formatAST(expr)
+	ast, err := ast.Format(expr)
 	if err != nil {
 		panic(err)
 	}
