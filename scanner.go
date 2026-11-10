@@ -104,11 +104,45 @@ func (s *Scanner) scanToken() {
 	default:
 		if isDigit(c) {
 			s.addNumber()
+		} else if isAlpha(c) {
+			s.addIdentifier()
 		} else {
 			// hate it, but it is what it is
 			printError(s.line, "unexpected character")
 		}
 	}
+}
+
+var keywords = map[string]TokenType{
+	"and":    And,
+	"class":  Class,
+	"else":   Else,
+	"false":  False,
+	"for":    For,
+	"fun":    Fun,
+	"if":     If,
+	"nil":    Nil,
+	"or":     Or,
+	"print":  Print,
+	"return": Return,
+	"super":  Super,
+	"this":   This,
+	"true":   True,
+	"var":    Var,
+	"while":  While,
+}
+
+func (s *Scanner) addIdentifier() {
+	for isAlphaNumeric(s.peek()) {
+		s.advance()
+	}
+
+	text := s.source[s.start:s.current]
+	typ, ok := keywords[text]
+	if !ok {
+		typ = Identifier
+	}
+	s.addToken(typ, nil)
 }
 
 func (s *Scanner) addNumber() {
@@ -206,6 +240,16 @@ func (s *Scanner) match(expected byte) bool {
 // did we finish reading?
 func (s *Scanner) isAtEnd() bool {
 	return s.current >= len(s.source)
+}
+
+func isAlphaNumeric(c byte) bool {
+	return isAlpha(c) || isDigit(c)
+}
+
+func isAlpha(c byte) bool {
+	return (c >= 'a' && c <= 'z') ||
+		(c >= 'A' && c <= 'Z') ||
+		c == '_'
 }
 
 func isDigit(c byte) bool {
