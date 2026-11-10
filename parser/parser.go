@@ -187,9 +187,10 @@ func (p *Parser) primary() (ast.Expr, error) {
 
 		return ast.Grouping{Expr: expr}, nil
 	default:
+		token := p.peek()
 		return nil, &ParseError{
-			Token:   p.peek(),
-			Message: "Expect expression.",
+			Token:   token,
+			Message: fmt.Sprintf("%q is not a valid expression", token.Lexeme),
 		}
 	}
 }

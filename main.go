@@ -13,6 +13,8 @@ import (
 	"github.com/antoniskalou/glox/scanner"
 )
 
+const debug = false
+
 func main() {
 	switch len(os.Args) {
 	case 1:
@@ -79,11 +81,13 @@ func run(source string) error {
 		return err
 	}
 
-	ast, err := ast.Format(expr)
-	if err != nil {
-		return err
+	if debug {
+		ast, err := ast.Format(expr)
+		if err != nil {
+			return err
+		}
+		fmt.Println("[DEBUG] AST:", ast)
 	}
-	fmt.Println("[DEBUG] AST:", ast)
 
 	interpreter := interpreter.New()
 	val, err := interpreter.Interpret(expr)
