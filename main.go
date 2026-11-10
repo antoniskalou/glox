@@ -16,24 +16,26 @@ import (
 const debug = false
 
 func main() {
+	inter := interpreter.New()
+
 	switch len(os.Args) {
 	case 1:
-		runPrompt()
+		runPrompt(inter)
 	case 2:
-		runFile(os.Args[1])
+		runFile(inter, os.Args[1])
 	default:
 		fmt.Println("Usage: glox [script]")
 		os.Exit(64)
 	}
 }
 
-func runFile(path string) {
+func runFile(inter *interpreter.Interpreter, path string) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := run(string(bytes)); err != nil {
+	if err := run(inter, string(bytes)); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 
 		switch err.(type) {
@@ -45,7 +47,7 @@ func runFile(path string) {
 	}
 }
 
-func runPrompt() {
+func runPrompt(inter *interpreter.Interpreter) {
 	stdin := bufio.NewReader(os.Stdin)
 
 	for {
@@ -62,13 +64,13 @@ func runPrompt() {
 			break
 		}
 
-		if err := run(string(line)); err != nil {
+		if err := run(inter, string(line)); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		}
 	}
 }
 
-func run(source string) error {
+func run(inter *interpreter.Interpreter, source string) error {
 	scanner := scanner.New(source)
 	tokens, err := scanner.ScanTokens()
 	if err != nil {
@@ -89,6 +91,5 @@ func run(source string) error {
 		fmt.Println("[DEBUG] AST:", ast)
 	}
 
-	interpreter := interpreter.New()
-	return interpreter.Interpret(statements)
+	return inter.Interpret(statements)
 }

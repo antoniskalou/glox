@@ -14,6 +14,7 @@ func FormatMany(statements []Stmt) (string, error) {
 		}
 
 		b.WriteString(s)
+		b.WriteByte('\n')
 	}
 	return b.String(), nil
 }
