@@ -68,8 +68,12 @@ func run(source string) {
 	}
 }
 
-func printError(line int, message string) {
-	printReport(line, "", message)
+func printError(token Token, message string) {
+	if token.Type == EOF {
+		printReport(token.Line, " at end", message)
+	} else {
+		printReport(token.Line, " at '"+token.Lexeme+"'", message)
+	}
 }
 
 func printReport(line int, where, message string) {

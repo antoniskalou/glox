@@ -49,5 +49,6 @@ const (
 	Var    TokenType = "VAR"
 	While  TokenType = "WHILE"
 
-	EOF TokenType = "EOF"
+	EOF     TokenType = "EOF"
+	Invalid TokenType = "UNKNOWN"
 )

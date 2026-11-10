@@ -108,7 +108,11 @@ func (s *Scanner) scanToken() {
 			s.addIdentifier()
 		} else {
 			// hate it, but it is what it is
-			printError(s.line, "unexpected character")
+			printError(Token{
+				Type:   Invalid,
+				Lexeme: string(c),
+				Line:   s.line,
+			}, "unexpected character")
 		}
 	}
 }
@@ -179,7 +183,11 @@ func (s *Scanner) addString() {
 	}
 
 	if s.isAtEnd() {
-		printError(s.line, "Unterminated string")
+		printError(Token{
+			Type:   String,
+			Lexeme: s.source[s.start:s.current],
+			Line:   s.line,
+		}, "Unterminated string")
 		return
 	}
 
