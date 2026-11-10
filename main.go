@@ -61,7 +61,10 @@ func runPrompt() {
 
 func run(source string) {
 	scanner := NewScanner(source)
-	tokens := scanner.ScanTokens()
+	tokens, err := scanner.ScanTokens()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	parser := NewParser(tokens)
 	expr, err := parser.Parse()
@@ -78,17 +81,4 @@ func run(source string) {
 		panic(err)
 	}
 	fmt.Println(ast)
-}
-
-func printError(token Token, message string) {
-	if token.Type == EOF {
-		printReport(token.Line, " at end", message)
-	} else {
-		printReport(token.Line, " at '"+token.Lexeme+"'", message)
-	}
-}
-
-func printReport(line int, where, message string) {
-	fmt.Fprintf(os.Stderr, "[line %d] Error %s: %s\n", line, where, message)
-	hadError = true
 }

@@ -1,6 +1,18 @@
 package main
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
+
+type ScanError struct {
+	Line    int
+	Message string
+}
+
+func (e *ScanError) Error() string {
+	return fmt.Sprintf("[line %d] Scan error: %s", e.Line, e.Message)
+}
 
 type Scanner struct {
 	source string
@@ -22,11 +34,15 @@ func NewScanner(source string) *Scanner {
 	}
 }
 
-func (s *Scanner) ScanTokens() []Token {
+func (s *Scanner) ScanTokens() ([]Token, error) {
 	for !s.isAtEnd() {
 		// we are the beginning of the next lexeme
 		s.start = s.current
-		s.scanToken()
+
+		if err := s.scanToken(); err != nil {
+			// return what we managed to parse so far
+			return s.tokens, err
+		}
 	}
 
 	s.tokens = append(s.tokens, Token{
@@ -36,10 +52,10 @@ func (s *Scanner) ScanTokens() []Token {
 		Line:    s.line,
 	})
 
-	return s.tokens
+	return s.tokens, nil
 }
 
-func (s *Scanner) scanToken() {
+func (s *Scanner) scanToken() error {
 	c := s.advance()
 	switch c {
 	case '(':
@@ -100,21 +116,21 @@ func (s *Scanner) scanToken() {
 	case '\n':
 		s.line++
 	case '"':
-		s.addString()
+		return s.addString()
 	default:
 		if isDigit(c) {
 			s.addNumber()
 		} else if isAlpha(c) {
 			s.addIdentifier()
 		} else {
-			// hate it, but it is what it is
-			printError(Token{
-				Type:   Invalid,
-				Lexeme: string(c),
-				Line:   s.line,
-			}, "unexpected character")
+			return &ScanError{
+				Line:    s.line,
+				Message: fmt.Sprintf("unexpected character: %q", c),
+			}
 		}
 	}
+
+	return nil
 }
 
 var keywords = map[string]TokenType{
@@ -173,7 +189,7 @@ func (s *Scanner) addNumber() {
 	s.addToken(Number, f)
 }
 
-func (s *Scanner) addString() {
+func (s *Scanner) addString() error {
 	for s.peek() != '"' && !s.isAtEnd() {
 		// handle multiline strings
 		if s.peek() == '\n' {
@@ -183,12 +199,11 @@ func (s *Scanner) addString() {
 	}
 
 	if s.isAtEnd() {
-		printError(Token{
-			Type:   String,
-			Lexeme: s.source[s.start:s.current],
-			Line:   s.line,
-		}, "Unterminated string")
-		return
+		return &ScanError{
+			Line: s.line,
+			Message: fmt.Sprintf("Unterminated string: %s",
+				s.source[s.start:s.current]),
+		}
 	}
 
 	s.advance() // the closing "
@@ -196,6 +211,8 @@ func (s *Scanner) addString() {
 	// trim surrounding quotes
 	value := s.source[s.start+1 : s.current-1]
 	s.addToken(String, value)
+
+	return nil
 }
 
 // advances scanner, returns the next char
