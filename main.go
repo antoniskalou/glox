@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 )
@@ -37,24 +38,29 @@ func runFile(path string) {
 }
 
 func runPrompt() {
-	scanner := bufio.NewScanner(os.Stdin)
+	stdin := bufio.NewReader(os.Stdin)
 
 	for {
-		fmt.Println("> ")
+		fmt.Print("> ")
 
-		scanned := scanner.Scan()
-		if !scanned {
-			return
+		line, _, err := stdin.ReadLine()
+		if err == io.EOF {
+			os.Exit(0)
+		} else if err != nil {
+			log.Fatal(err)
 		}
 
-		line := scanner.Text()
-		run(line)
+		if len(line) == 0 {
+			break
+		}
+
+		run(string(line))
 		hadError = false
 	}
 }
 
 func run(source string) {
-	scanner := scanner.New(source)
+	scanner := NewScanner(source)
 	tokens := scanner.ScanTokens()
 
 	for _, token := range tokens {
@@ -67,6 +73,6 @@ func printError(line int, message string) {
 }
 
 func printReport(line int, where, message string) {
-	fmt.Fprintf(os.Stderr, "[line %d] Error %s: %s", where, message)
+	fmt.Fprintf(os.Stderr, "[line %d] Error %s: %s\n", line, where, message)
 	hadError = true
 }
