@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/antoniskalou/glox/ast"
+	"github.com/antoniskalou/glox/interpreter"
 	"github.com/antoniskalou/glox/parser"
 	"github.com/antoniskalou/glox/scanner"
 )
@@ -32,7 +33,13 @@ func runFile(path string) {
 
 	if err := run(string(bytes)); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(65)
+
+		switch err.(type) {
+		case *interpreter.RuntimeError:
+			os.Exit(70)
+		default:
+			os.Exit(65)
+		}
 	}
 }
 
@@ -76,7 +83,14 @@ func run(source string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(ast)
+	fmt.Println("[DEBUG] AST:", ast)
+
+	interpreter := interpreter.New()
+	val, err := interpreter.Interpret(expr)
+	if err != nil {
+		return err
+	}
+	fmt.Println(val)
 
 	return nil
 }

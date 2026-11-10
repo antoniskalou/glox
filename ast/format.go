@@ -15,6 +15,11 @@ func Format(expr Expr) (string, error) {
 		if expr.Value == nil {
 			return "nil", nil
 		}
+
+		if s, ok := expr.Value.(string); ok {
+			return fmt.Sprintf("%q", s), nil
+		}
+
 		return formatValue(expr.Value), nil
 	case Unary:
 		return parenthesize(expr.Operator.Lexeme, expr.Right)

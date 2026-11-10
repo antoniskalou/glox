@@ -7,19 +7,31 @@ import (
 	"github.com/antoniskalou/glox/token"
 )
 
+type RuntimeErrorKind string
+
+const (
+	TypeError  RuntimeErrorKind = "Type error"
+	ValueError RuntimeErrorKind = "Value error"
+)
+
 type RuntimeError struct {
 	Token   token.Token
+	Kind    RuntimeErrorKind
 	Message string
 }
 
 func (e *RuntimeError) Error() string {
-	return fmt.Sprintf("[line %d] Runtime error: %s", e.Token.Line, e.Message)
+	return fmt.Sprintf("[line %d] %s: %s", e.Token.Line, e.Kind, e.Message)
 }
 
 type Interpreter struct{}
 
 func New() *Interpreter {
 	return &Interpreter{}
+}
+
+func (i *Interpreter) Interpret(expr ast.Expr) (any, error) {
+	return evaluate(expr)
 }
 
 func evaluate(expr ast.Expr) (any, error) {
@@ -64,13 +76,15 @@ func evalBinary(expr ast.Binary) (any, error) {
 		return nil, err
 	}
 
+	typeError := func() error {
+		return &RuntimeError{
+			Token:   expr.Operator,
+			Kind:    TypeError,
+			Message: fmt.Sprintf("%T %s %T", left, expr.Operator.Lexeme, right),
+		}
+	}
+
 	switch expr.Operator.Type {
-	case token.Minus:
-		return left.(float64) - right.(float64), nil
-	case token.Slash:
-		return left.(float64) / right.(float64), nil
-	case token.Star:
-		return left.(float64) * right.(float64), nil
 	case token.Plus:
 		if v, ok := addFloats(left, right); ok {
 			return v, nil
@@ -80,18 +94,58 @@ func evalBinary(expr ast.Binary) (any, error) {
 			return v, nil
 		}
 
-		return nil, &RuntimeError{
-			Token:   expr.Operator,
-			Message: fmt.Sprintf("type error: %T + %T", left, right),
+		return nil, typeError()
+	case token.Minus:
+		if l, r, ok := comparable(left, right); ok {
+			return l - r, nil
 		}
+
+		return nil, typeError()
+	case token.Slash:
+		l, r, ok := comparable(left, right)
+		if !ok {
+			return nil, typeError()
+		}
+
+		if r == 0 {
+			return nil, &RuntimeError{
+				Token:   expr.Operator,
+				Kind:    ValueError,
+				Message: "division by zero",
+			}
+		}
+
+		return l / r, nil
+	case token.Star:
+		if l, r, ok := comparable(left, right); ok {
+			return l * r, nil
+		}
+
+		return nil, typeError()
 	case token.Greater:
-		return left.(float64) > right.(float64), nil
+		if l, r, ok := comparable(left, right); ok {
+			return l > r, nil
+		}
+
+		return nil, typeError()
 	case token.GreaterEqual:
-		return left.(float64) >= right.(float64), nil
+		if l, r, ok := comparable(left, right); ok {
+			return l >= r, nil
+		}
+
+		return nil, typeError()
 	case token.Less:
-		return left.(float64) < right.(float64), nil
+		if l, r, ok := comparable(left, right); ok {
+			return l < r, nil
+		}
+
+		return nil, typeError()
 	case token.LessEqual:
-		return left.(float64) <= right.(float64), nil
+		if l, r, ok := comparable(left, right); ok {
+			return l <= r, nil
+		}
+
+		return nil, typeError()
 	case token.BangEqual:
 		return left != right, nil
 	case token.EqualEqual:
@@ -99,6 +153,13 @@ func evalBinary(expr ast.Binary) (any, error) {
 	}
 
 	panic("unreachable")
+}
+
+func comparable(l any, r any) (float64, float64, bool) {
+	vl, okl := l.(float64)
+	vr, okr := r.(float64)
+
+	return vl, vr, okl && okr
 }
 
 func isTruthy(val any) bool {
