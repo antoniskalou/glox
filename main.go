@@ -64,7 +64,10 @@ func run(source string) {
 	tokens := scanner.ScanTokens()
 
 	parser := NewParser(tokens)
-	expr := parser.Parse()
+	expr, err := parser.Parse()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if hadError {
 		return

@@ -1,19 +1,15 @@
-/*
-Grammar:
-
-expression → equality ;
-equality → comparison ( ( "!=" | "==" ) comparison )* ;
-comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-term → factor ( ( "-" | "+" ) factor )* ;
-factor → unary ( ( "/" | "*" ) unary )* ;
-unary → ( "!" | "-" ) unary | primary ;
-primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
-*/
 package main
 
-import "errors"
+import "fmt"
 
-var ErrParse = errors.New("parsing error")
+type ParseError struct {
+	Token   Token
+	Message string
+}
+
+func (e *ParseError) Error() string {
+	return fmt.Sprintf("[line %d] Parser error: %s", e.Token.Line, e.Message)
+}
 
 type Parser struct {
 	tokens  []Token
@@ -27,20 +23,40 @@ func NewParser(tokens []Token) *Parser {
 	}
 }
 
-func (p *Parser) Parse() Expr {
+/*
+Grammar:
+
+expression → equality ;
+equality → comparison ( ( "!=" | "==" ) comparison )* ;
+comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term → factor ( ( "-" | "+" ) factor )* ;
+factor → unary ( ( "/" | "*" ) unary )* ;
+unary → ( "!" | "-" ) unary | primary ;
+primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+*/
+
+func (p *Parser) Parse() (Expr, error) {
 	return p.expression()
 }
 
-func (p *Parser) expression() Expr {
+func (p *Parser) expression() (Expr, error) {
 	return p.equality()
 }
 
-func (p *Parser) equality() Expr {
-	expr := p.comparison()
+func (p *Parser) equality() (Expr, error) {
+	expr, err := p.comparison()
+	if err != nil {
+		return nil, err
+	}
 
 	for p.match(BangEqual, EqualEqual) {
 		op := p.previous()
-		right := p.comparison()
+
+		right, err := p.comparison()
+		if err != nil {
+			return nil, err
+		}
+
 		expr = Binary{
 			Left:     expr,
 			Operator: op,
@@ -48,15 +64,23 @@ func (p *Parser) equality() Expr {
 		}
 	}
 
-	return expr
+	return expr, nil
 }
 
-func (p *Parser) comparison() Expr {
-	expr := p.term()
+func (p *Parser) comparison() (Expr, error) {
+	expr, err := p.term()
+	if err != nil {
+		return nil, err
+	}
 
 	for p.match(Greater, GreaterEqual, Less, LessEqual) {
 		op := p.previous()
-		right := p.term()
+
+		right, err := p.term()
+		if err != nil {
+			return nil, err
+		}
+
 		expr = Binary{
 			Left:     expr,
 			Operator: op,
@@ -64,15 +88,23 @@ func (p *Parser) comparison() Expr {
 		}
 	}
 
-	return expr
+	return expr, nil
 }
 
-func (p *Parser) term() Expr {
-	expr := p.factor()
+func (p *Parser) term() (Expr, error) {
+	expr, err := p.factor()
+	if err != nil {
+		return nil, err
+	}
 
 	for p.match(Minus, Plus) {
 		op := p.previous()
-		right := p.factor()
+
+		right, err := p.factor()
+		if err != nil {
+			return nil, err
+		}
+
 		expr = Binary{
 			Left:     expr,
 			Operator: op,
@@ -80,15 +112,23 @@ func (p *Parser) term() Expr {
 		}
 	}
 
-	return expr
+	return expr, nil
 }
 
-func (p *Parser) factor() Expr {
-	expr := p.unary()
+func (p *Parser) factor() (Expr, error) {
+	expr, err := p.unary()
+	if err != nil {
+		return nil, err
+	}
 
 	for p.match(Slash, Star) {
 		op := p.previous()
-		right := p.unary()
+
+		right, err := p.unary()
+		if err != nil {
+			return nil, err
+		}
+
 		expr = Binary{
 			Left:     expr,
 			Operator: op,
@@ -96,40 +136,56 @@ func (p *Parser) factor() Expr {
 		}
 	}
 
-	return expr
+	return expr, nil
 }
 
-func (p *Parser) unary() Expr {
+func (p *Parser) unary() (Expr, error) {
 	if p.match(Bang, Minus) {
 		op := p.previous()
+
 		// match advances remember, so this won't cause an infinite loop
-		right := p.unary()
+		right, err := p.unary()
+		if err != nil {
+			return nil, err
+		}
+
 		return Unary{
 			Operator: op,
 			Right:    right,
-		}
+		}, nil
 	}
 
 	return p.primary()
 }
 
-func (p *Parser) primary() Expr {
+func (p *Parser) primary() (Expr, error) {
 	switch {
 	case p.match(False):
-		return Literal{false}
+		return Literal{false}, nil
 	case p.match(True):
-		return Literal{true}
+		return Literal{true}, nil
 	case p.match(Nil):
-		return Literal{nil}
+		return Literal{nil}, nil
 	case p.match(Number, String):
-		return Literal{p.previous().Literal}
+		return Literal{p.previous().Literal}, nil
 	case p.match(LeftParen):
-		expr := p.expression()
-		p.consume(RightParen, "Expect ')' after expression")
-		return Grouping{expr}
-	}
+		expr, err := p.expression()
+		if err != nil {
+			return nil, err
+		}
 
-	panic(parseError(p.peek(), "Expect expression."))
+		_, err = p.consume(RightParen, "Expect ')' after expression")
+		if err != nil {
+			return nil, err
+		}
+
+		return Grouping{expr}, nil
+	default:
+		return nil, &ParseError{
+			Token:   p.peek(),
+			Message: "Expect expression.",
+		}
+	}
 }
 
 func (p *Parser) synchronize() {
@@ -149,12 +205,15 @@ func (p *Parser) synchronize() {
 	}
 }
 
-func (p *Parser) consume(typ TokenType, message string) Token {
+func (p *Parser) consume(typ TokenType, message string) (Token, error) {
 	if p.check(typ) {
-		return p.advance()
+		return p.advance(), nil
 	}
 
-	panic(parseError(p.peek(), message))
+	return Token{}, &ParseError{
+		Token:   p.peek(),
+		Message: message,
+	}
 }
 
 // checks if current token has any of the given types, if so, it
@@ -203,9 +262,4 @@ func (p *Parser) previous() Token {
 // have we run out of tokens to parse?
 func (p *Parser) isAtEnd() bool {
 	return p.peek().Type == EOF
-}
-
-func parseError(token Token, message string) error {
-	printError(token, message)
-	return ErrParse
 }
