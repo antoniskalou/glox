@@ -84,6 +84,19 @@ func (s *Scanner) scanToken() {
 			typ = GreaterEqual
 		}
 		s.addToken(typ, nil)
+	case '/':
+		if s.match('/') {
+			// comment goes until end of line
+			for s.peek() != '\n' && !s.isAtEnd() {
+				s.advance()
+			}
+		} else {
+			s.addToken(Slash, nil)
+		}
+	case ' ', '\r', '\t':
+		// ignore whitespace
+	case '\n':
+		s.line++
 	default:
 		// hate it, but it is what it is
 		printError(s.line, "unexpected character")
@@ -94,6 +107,15 @@ func (s *Scanner) scanToken() {
 func (s *Scanner) advance() byte {
 	s.current++
 	return s.source[s.current-1]
+}
+
+// checks next byte without advancing scanner
+func (s *Scanner) peek() byte {
+	if s.isAtEnd() {
+		return '\x00'
+	}
+
+	return s.source[s.current]
 }
 
 func (s *Scanner) addToken(typ TokenType, literal any) {

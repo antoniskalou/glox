@@ -1,1 +1,3 @@
-var variable = 10;
+// this is a comment
+(( )){} // grouping stuff
+!*+-/=<> <= == // operators
