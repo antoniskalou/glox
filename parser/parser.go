@@ -54,12 +54,14 @@ assignment     → IDENTIFIER "=" assignment | logic_or ;
 logic_or       → logic_and ( "or" logic_and )* ;
 logic_and      → equality ( "and" equality )* ;
 
-equality → comparison ( ( "!=" | "==" ) comparison )* ;
-comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-term → factor ( ( "-" | "+" ) factor )* ;
-factor → unary ( ( "/" | "*" ) unary )* ;
-unary → ( "!" | "-" ) unary | primary ;
-primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
+equality       → comparison ( ( "!=" | "==" ) comparison )* ;
+comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term           → factor ( ( "-" | "+" ) factor )* ;
+factor         → unary ( ( "/" | "*" ) unary )* ;
+unary          → ( "!" | "-" ) unary | call ;
+call           → primary ( "(" arguments? ")" )* ;
+arguments      → expression ( "," expression )* ;
+primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
 */
 
 func (p *Parser) Parse() ([]ast.Stmt, error) {
@@ -508,7 +510,62 @@ func (p *Parser) unary() (ast.Expr, error) {
 		}, nil
 	}
 
-	return p.primary()
+	return p.call()
+}
+
+func (p *Parser) call() (ast.Expr, error) {
+	expr, err := p.primary()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		if p.match(token.LeftParen) {
+			expr, err = p.finishCall(expr)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			break
+		}
+	}
+
+	return expr, nil
+}
+
+func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
+	args := make([]ast.Expr, 0)
+	if !p.check(token.RightParen) {
+		for {
+			expr, err := p.expression()
+			if err != nil {
+				return nil, err
+			}
+
+			if len(args) >= 255 {
+				return nil, &ParseError{
+					Token:   p.peek(),
+					Message: "can't have more than 255 arguments",
+				}
+			}
+
+			args = append(args, expr)
+			if !p.match(token.Comma) {
+				break
+			}
+		}
+	}
+
+	paren, err := p.consume(token.RightParen, "Expect ')' after arguments")
+	if err != nil {
+		return nil, err
+	}
+
+	return ast.Call{
+		Callee:    callee,
+		Paren:     paren,
+		Arguments: args,
+	}, nil
 }
 
 func (p *Parser) primary() (ast.Expr, error) {

@@ -53,3 +53,11 @@ type Logical struct {
 }
 
 func (Logical) isExpr() {}
+
+type Call struct {
+	Callee    Expr
+	Paren     token.Token
+	Arguments []Expr
+}
+
+func (Call) isExpr() {}

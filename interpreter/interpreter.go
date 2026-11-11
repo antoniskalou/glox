@@ -160,6 +160,41 @@ func evaluate(expr ast.Expr, env Environment) (any, error) {
 		}
 
 		return evaluate(expr.Right, env)
+	case ast.Call:
+		callee, err := evaluate(expr.Callee, env)
+		if err != nil {
+			return nil, err
+		}
+
+		args := make([]any, len(expr.Arguments))
+		for i, arg := range expr.Arguments {
+			val, err := evaluate(arg, env)
+			if err != nil {
+				return nil, err
+			}
+
+			args[i] = val
+		}
+
+		fun, ok := callee.(Callable)
+		if !ok {
+			return nil, &RuntimeError{
+				Token:   expr.Paren,
+				Kind:    TypeError,
+				Message: fmt.Sprintf("can not call a %T", callee),
+			}
+		}
+
+		if len(args) != fun.arity() {
+			return nil, &RuntimeError{
+				Token: expr.Paren,
+				Kind:  TypeError,
+				Message: fmt.Sprintf("%s expected %d arguments, got %d",
+					expr.Paren.Lexeme, fun.arity(), len(args)),
+			}
+		}
+
+		return fun.call(env, args), nil
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))
 	}
