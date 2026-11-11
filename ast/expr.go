@@ -45,3 +45,11 @@ type Assign struct {
 }
 
 func (Assign) isExpr() {}
+
+type Logical struct {
+	Left     Expr
+	Operator token.Token
+	Right    Expr
+}
+
+func (Logical) isExpr() {}

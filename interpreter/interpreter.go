@@ -128,6 +128,23 @@ func evaluate(expr ast.Expr, env Environment) (any, error) {
 		}
 
 		return val, nil
+	case ast.Logical:
+		left, err := evaluate(expr.Left, env)
+		if err != nil {
+			return nil, err
+		}
+
+		if expr.Operator.Type == token.Or {
+			if isTruthy(left) {
+				return left, nil
+			}
+		} else {
+			if !isTruthy(left) {
+				return left, nil
+			}
+		}
+
+		return evaluate(expr.Right, env)
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))
 	}
