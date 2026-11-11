@@ -65,8 +65,20 @@ func execute(stmt ast.Stmt, env Environment) error {
 			}
 		}
 		env.define(stmt.Name.Lexeme, val)
+	case ast.Block:
+		return executeBlock(stmt.Statements, env)
 	}
 
+	return nil
+}
+
+func executeBlock(statements []ast.Stmt, env Environment) error {
+	scoped := newEnclosed(env)
+	for _, stmt := range statements {
+		if err := execute(stmt, scoped); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

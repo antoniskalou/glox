@@ -24,3 +24,9 @@ type Var struct {
 }
 
 func (Var) isStmt() {}
+
+type Block struct {
+	Statements []Stmt
+}
+
+func (Block) isStmt() {}

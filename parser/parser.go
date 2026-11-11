@@ -40,9 +40,9 @@ declaration    → varDecl
 
 
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-statement      → exprStmt
-               | printStmt ;program        → statement* EOF ;
 
+statement      → exprStmt | printStmt | block ;
+block          → "{" declaration* "}" ;
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;expression → equality ;
 
@@ -99,11 +99,34 @@ func (p *Parser) varDeclaration() (ast.Stmt, error) {
 }
 
 func (p *Parser) statement() (ast.Stmt, error) {
-	if p.match(token.Print) {
+	switch {
+	case p.match(token.Print):
 		return p.printStatement()
+	case p.match(token.LeftBrace):
+		return p.block()
+	default:
+		return p.expressionStatement()
+	}
+}
+
+func (p *Parser) block() (ast.Stmt, error) {
+	statements := make([]ast.Stmt, 0)
+
+	for !p.check(token.RightBrace) && !p.isAtEnd() {
+		stmt, err := p.declaration()
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, stmt)
 	}
 
-	return p.expressionStatement()
+	if _, err := p.consume(
+		token.RightBrace, "Expect '{' after block",
+	); err != nil {
+		return nil, err
+	}
+
+	return ast.Block{Statements: statements}, nil
 }
 
 func (p *Parser) printStatement() (ast.Stmt, error) {
