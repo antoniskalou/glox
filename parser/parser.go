@@ -41,11 +41,12 @@ declaration    → varDecl
 
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
-statement      → exprStmt | ifStmt | printStmt | block ;
-ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
-block          → "{" declaration* "}" ;
+statement      → exprStmt | ifStmt | printStmt | whileStmt | block ;
 exprStmt       → expression ";" ;
+ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 printStmt      → "print" expression ";" ;expression → equality ;
+whileStmt      → "while" "(" expression ")" statement ;
+block          → "{" declaration* "}" ;
 
 expression     → assignment ;
 assignment     → IDENTIFIER "=" assignment | logic_or ;
@@ -112,6 +113,8 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		return p.block()
 	case p.match(token.If):
 		return p.ifStatement()
+	case p.match(token.While):
+		return p.whileStatement()
 	default:
 		return p.expressionStatement()
 	}
@@ -170,6 +173,35 @@ func (p *Parser) ifStatement() (ast.Stmt, error) {
 		Condition:  condition,
 		ThenBranch: thenBranch,
 		ElseBranch: elseBranch,
+	}, nil
+}
+
+func (p *Parser) whileStatement() (ast.Stmt, error) {
+	if _, err := p.consume(
+		token.LeftParen, "Expect '(' after 'while'",
+	); err != nil {
+		return nil, err
+	}
+
+	condition, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(
+		token.RightParen, "Expect ')' after condition",
+	); err != nil {
+		return nil, err
+	}
+
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	return ast.While{
+		Condition: condition,
+		Body:      body,
 	}, nil
 }
 

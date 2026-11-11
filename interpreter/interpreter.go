@@ -78,6 +78,21 @@ func execute(stmt ast.Stmt, env Environment) error {
 		} else if stmt.ElseBranch != nil {
 			return execute(stmt.ElseBranch, env)
 		}
+	case ast.While:
+		for {
+			val, err := evaluate(stmt.Condition, env)
+			if err != nil {
+				return err
+			}
+
+			if !isTruthy(val) {
+				break
+			}
+
+			if err := execute(stmt.Body, env); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

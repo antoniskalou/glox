@@ -38,3 +38,10 @@ type If struct {
 }
 
 func (If) isStmt() {}
+
+type While struct {
+	Condition Expr
+	Body      Stmt
+}
+
+func (While) isStmt() {}
