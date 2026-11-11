@@ -24,15 +24,19 @@ func (e *RuntimeError) Error() string {
 	return fmt.Sprintf("[line %d] %s: %s", e.Token.Line, e.Kind, e.Message)
 }
 
-type Interpreter struct{}
+type Interpreter struct {
+	env Environment
+}
 
 func New() *Interpreter {
-	return &Interpreter{}
+	return &Interpreter{
+		env: newEnvironment(),
+	}
 }
 
 func (i *Interpreter) Interpret(statements []ast.Stmt) error {
 	for _, stmt := range statements {
-		if err := execute(stmt); err != nil {
+		if err := execute(stmt, i.env); err != nil {
 			return err
 		}
 	}
@@ -40,40 +44,61 @@ func (i *Interpreter) Interpret(statements []ast.Stmt) error {
 	return nil
 }
 
-func execute(stmt ast.Stmt) error {
+func execute(stmt ast.Stmt, env Environment) error {
 	switch stmt := stmt.(type) {
 	case ast.Expression:
-		if _, err := evaluate(stmt.Expr); err != nil {
+		if _, err := evaluate(stmt.Expr, env); err != nil {
 			return err
 		}
 	case ast.Print:
-		val, err := evaluate(stmt.Expr)
+		val, err := evaluate(stmt.Expr, env)
 		if err != nil {
 			return err
 		}
 		fmt.Println(val)
+	case ast.Var:
+		var val any
+		var err error
+		// var is nil if not initalized
+		if stmt.Initializer != nil {
+			val, err = evaluate(stmt.Initializer, env)
+			if err != nil {
+				return err
+			}
+		}
+		env.define(stmt.Name.Lexeme, val)
 	}
 
 	return nil
 }
 
-func evaluate(expr ast.Expr) (any, error) {
+func evaluate(expr ast.Expr, env Environment) (any, error) {
 	switch expr := expr.(type) {
 	case ast.Literal:
 		return expr.Value, nil
 	case ast.Grouping:
-		return evaluate(expr.Expr)
+		return evaluate(expr.Expr, env)
 	case ast.Unary:
-		return evalUnary(expr)
+		return evalUnary(expr, env)
 	case ast.Binary:
-		return evalBinary(expr)
+		return evalBinary(expr, env)
+	case ast.Variable:
+		val, ok := env.get(expr.Name)
+		if !ok {
+			return nil, &RuntimeError{
+				Token:   expr.Name,
+				Kind:    ValueError, // is it really a "value" error?
+				Message: fmt.Sprintf("variable %q is undefined", expr.Name.Lexeme),
+			}
+		}
+		return val, nil
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))
 	}
 }
 
-func evalUnary(expr ast.Unary) (any, error) {
-	right, err := evaluate(expr.Right)
+func evalUnary(expr ast.Unary, env Environment) (any, error) {
+	right, err := evaluate(expr.Right, env)
 	if err != nil {
 		return nil, err
 	}
@@ -88,13 +113,13 @@ func evalUnary(expr ast.Unary) (any, error) {
 	panic("unreachable")
 }
 
-func evalBinary(expr ast.Binary) (any, error) {
-	left, err := evaluate(expr.Left)
+func evalBinary(expr ast.Binary, env Environment) (any, error) {
+	left, err := evaluate(expr.Left, env)
 	if err != nil {
 		return nil, err
 	}
 
-	right, err := evaluate(expr.Right)
+	right, err := evaluate(expr.Right, env)
 	if err != nil {
 		return nil, err
 	}

@@ -32,10 +32,16 @@ func New(tokens []token.Token) *Parser {
 /*
 Grammar:
 
-program        → statement* EOF ;
 
+program        → declaration* EOF ;
+
+declaration    → varDecl
+               | statement ;
+
+
+varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 statement      → exprStmt
-               | printStmt ;
+               | printStmt ;program        → statement* EOF ;
 
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;expression → equality ;
@@ -45,15 +51,16 @@ comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term → factor ( ( "-" | "+" ) factor )* ;
 factor → unary ( ( "/" | "*" ) unary )* ;
 unary → ( "!" | "-" ) unary | primary ;
-primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" ;
+primary → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
 */
 
 func (p *Parser) Parse() ([]ast.Stmt, error) {
 	statements := make([]ast.Stmt, 0)
 
 	for !p.isAtEnd() {
-		stmt, err := p.statement()
+		stmt, err := p.declaration()
 		if err != nil {
+			p.synchronize()
 			return nil, err
 		}
 
@@ -61,6 +68,34 @@ func (p *Parser) Parse() ([]ast.Stmt, error) {
 	}
 
 	return statements, nil
+}
+
+func (p *Parser) declaration() (ast.Stmt, error) {
+	if p.match(token.Var) {
+		return p.varDeclaration()
+	}
+
+	return p.statement()
+}
+
+func (p *Parser) varDeclaration() (ast.Stmt, error) {
+	name, err := p.consume(token.Identifier, "Expect variable name")
+	if err != nil {
+		return nil, err
+	}
+
+	// initializer is optional, comes with the territory of statement based
+	// languages.
+	var initializer ast.Expr
+	if p.match(token.Equal) {
+		initializer, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	p.consume(token.Semicolon, "Expect ';' after variable declaration.")
+	return ast.Var{Name: name, Initializer: initializer}, nil
 }
 
 func (p *Parser) statement() (ast.Stmt, error) {
@@ -242,6 +277,10 @@ func (p *Parser) primary() (ast.Expr, error) {
 		}
 
 		return ast.Grouping{Expr: expr}, nil
+	case p.match(token.Identifier):
+		return ast.Variable{
+			Name: p.previous(),
+		}, nil
 	default:
 		token := p.peek()
 		return nil, &ParseError{

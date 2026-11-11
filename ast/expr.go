@@ -33,18 +33,8 @@ type Unary struct {
 
 func (Unary) isExpr() {}
 
-type Stmt interface {
-	isStmt()
+type Variable struct {
+	Name token.Token
 }
 
-type Expression struct {
-	Expr Expr
-}
-
-func (Expression) isStmt() {}
-
-type Print struct {
-	Expr Expr
-}
-
-func (Print) isStmt() {}
+func (Variable) isExpr() {}

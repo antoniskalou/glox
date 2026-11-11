@@ -1,0 +1,18 @@
+fun isOdd(n) {
+	if (n == 0) {
+		return false;
+	}
+
+	return isEven(n - 1);
+}
+
+fun isEven(n) {
+	if (n == 0) {
+		return true;
+	}
+
+	return isOdd(n - 1);
+}
+
+print "10 is even? " + isEven(10);
+print "15 is odd? " + isOdd(15);
