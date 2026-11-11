@@ -29,9 +29,7 @@ type Interpreter struct {
 }
 
 func New() *Interpreter {
-	return &Interpreter{
-		env: newEnvironment(),
-	}
+	return &Interpreter{env: newGlobal()}
 }
 
 func (i *Interpreter) Interpret(statements []ast.Stmt) error {
@@ -91,6 +89,21 @@ func evaluate(expr ast.Expr, env Environment) (any, error) {
 				Message: fmt.Sprintf("variable %q is undefined", expr.Name.Lexeme),
 			}
 		}
+		return val, nil
+	case ast.Assign:
+		val, err := evaluate(expr.Value, env)
+		if err != nil {
+			return nil, err
+		}
+
+		if !env.assign(expr.Name, val) {
+			return nil, &RuntimeError{
+				Token:   expr.Name,
+				Kind:    ValueError,
+				Message: fmt.Sprintf("undefined variable %q", expr.Name.Lexeme),
+			}
+		}
+
 		return val, nil
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))

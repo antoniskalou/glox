@@ -38,3 +38,10 @@ type Variable struct {
 }
 
 func (Variable) isExpr() {}
+
+type Assign struct {
+	Name  token.Token
+	Value Expr
+}
+
+func (Assign) isExpr() {}
