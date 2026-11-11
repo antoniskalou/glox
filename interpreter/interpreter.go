@@ -68,7 +68,7 @@ func execute(stmt ast.Stmt, env Environment) error {
 		}
 		env.define(stmt.Name.Lexeme, val)
 	case ast.Block:
-		return executeBlock(stmt.Statements, env)
+		return executeBlock(stmt, env)
 	case ast.If:
 		val, err := evaluate(stmt.Condition, env)
 		if err != nil {
@@ -95,14 +95,17 @@ func execute(stmt ast.Stmt, env Environment) error {
 				return err
 			}
 		}
+	case ast.Function:
+		fn := LoxFn{Declaration: stmt}
+		env.define(stmt.Name.Lexeme, fn)
 	}
 
 	return nil
 }
 
-func executeBlock(statements []ast.Stmt, env Environment) error {
+func executeBlock(block ast.Block, env Environment) error {
 	scoped := newEnclosed(env)
-	for _, stmt := range statements {
+	for _, stmt := range block.Statements {
 		if err := execute(stmt, scoped); err != nil {
 			return err
 		}
@@ -183,7 +186,7 @@ func evaluate(expr ast.Expr, env Environment) (any, error) {
 			return nil, &RuntimeError{
 				Token:   expr.Paren,
 				Kind:    TypeError,
-				Message: fmt.Sprintf("can not call a %T", callee),
+				Message: fmt.Sprintf("%T is not callable", callee),
 			}
 		}
 
@@ -196,7 +199,7 @@ func evaluate(expr ast.Expr, env Environment) (any, error) {
 			}
 		}
 
-		return fun.call(env, args), nil
+		return fun.call(env, args)
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))
 	}

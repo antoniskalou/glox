@@ -45,3 +45,11 @@ type While struct {
 }
 
 func (While) isStmt() {}
+
+type Function struct {
+	Name   token.Token
+	Params []token.Token
+	Body   Block
+}
+
+func (Function) isStmt() {}

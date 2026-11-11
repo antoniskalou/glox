@@ -35,10 +35,11 @@ Grammar:
 
 program        → declaration* EOF ;
 
-declaration    → varDecl
-               | statement ;
+declaration    → funDecl | varDecl | statement ;
 
-
+funDecl        → "fun" function ;
+function       → IDENTIFIER "(" parameters? ")" block ;
+parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
 statement      → exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
@@ -81,6 +82,10 @@ func (p *Parser) Parse() ([]ast.Stmt, error) {
 }
 
 func (p *Parser) declaration() (ast.Stmt, error) {
+	if p.match(token.Fun) {
+		return p.function("function")
+	}
+
 	if p.match(token.Var) {
 		return p.varDeclaration()
 	}
@@ -88,8 +93,67 @@ func (p *Parser) declaration() (ast.Stmt, error) {
 	return p.statement()
 }
 
+func (p *Parser) function(kind string) (ast.Stmt, error) {
+	name, err := p.consume(token.Identifier, "expect "+kind+" name")
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(
+		token.LeftParen, "expect '(' after "+kind+" name",
+	); err != nil {
+		return nil, err
+	}
+
+	params := make([]token.Token, 0)
+	if !p.check(token.RightParen) {
+		for {
+			if len(params) > 255 {
+				return nil, &ParseError{
+					Token:   p.peek(),
+					Message: "can't have more than 255 parameters",
+				}
+			}
+
+			param, err := p.consume(token.Identifier, "expect parameter name")
+			if err != nil {
+				return nil, err
+			}
+
+			params = append(params, param)
+
+			if !p.match(token.Comma) {
+				break
+			}
+		}
+	}
+
+	if _, err := p.consume(
+		token.RightParen, "expect ')' after parameters",
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(
+		token.LeftBrace, "expect '{' before "+kind+" body",
+	); err != nil {
+		return nil, err
+	}
+
+	body, err := p.block()
+	if err != nil {
+		return nil, err
+	}
+
+	return ast.Function{
+		Name:   name,
+		Params: params,
+		Body:   body.(ast.Block), // shouldn't fail
+	}, nil
+}
+
 func (p *Parser) varDeclaration() (ast.Stmt, error) {
-	name, err := p.consume(token.Identifier, "Expect variable name")
+	name, err := p.consume(token.Identifier, "expect variable name")
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +168,7 @@ func (p *Parser) varDeclaration() (ast.Stmt, error) {
 		}
 	}
 
-	p.consume(token.Semicolon, "Expect ';' after variable declaration.")
+	p.consume(token.Semicolon, "expect ';' after variable declaration.")
 	return ast.Var{Name: name, Initializer: initializer}, nil
 }
 
@@ -137,7 +201,7 @@ func (p *Parser) block() (ast.Stmt, error) {
 	}
 
 	if _, err := p.consume(
-		token.RightBrace, "Expect '{' after block",
+		token.RightBrace, "expect '{' after block",
 	); err != nil {
 		return nil, err
 	}
@@ -146,7 +210,7 @@ func (p *Parser) block() (ast.Stmt, error) {
 }
 
 func (p *Parser) ifStatement() (ast.Stmt, error) {
-	if _, err := p.consume(token.LeftParen, "Expect '(' after 'if'"); err != nil {
+	if _, err := p.consume(token.LeftParen, "expect '(' after 'if'"); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +220,7 @@ func (p *Parser) ifStatement() (ast.Stmt, error) {
 	}
 
 	if _, err := p.consume(
-		token.RightParen, "Expect ')' after if condition",
+		token.RightParen, "expect ')' after if condition",
 	); err != nil {
 		return nil, err
 	}
@@ -183,7 +247,7 @@ func (p *Parser) ifStatement() (ast.Stmt, error) {
 
 func (p *Parser) whileStatement() (ast.Stmt, error) {
 	if _, err := p.consume(
-		token.LeftParen, "Expect '(' after 'while'",
+		token.LeftParen, "expect '(' after 'while'",
 	); err != nil {
 		return nil, err
 	}
@@ -194,7 +258,7 @@ func (p *Parser) whileStatement() (ast.Stmt, error) {
 	}
 
 	if _, err := p.consume(
-		token.RightParen, "Expect ')' after condition",
+		token.RightParen, "expect ')' after condition",
 	); err != nil {
 		return nil, err
 	}
@@ -213,7 +277,7 @@ func (p *Parser) whileStatement() (ast.Stmt, error) {
 // desugars into a while loop
 func (p *Parser) forStatement() (ast.Stmt, error) {
 	if _, err := p.consume(
-		token.LeftParen, "Expect '(' after 'for'",
+		token.LeftParen, "expect '(' after 'for'",
 	); err != nil {
 		return nil, err
 	}
@@ -242,7 +306,7 @@ func (p *Parser) forStatement() (ast.Stmt, error) {
 	}
 
 	if _, err := p.consume(
-		token.Semicolon, "Expect ';' after loop condition",
+		token.Semicolon, "expect ';' after loop condition",
 	); err != nil {
 		return nil, err
 	}
@@ -256,7 +320,7 @@ func (p *Parser) forStatement() (ast.Stmt, error) {
 	}
 
 	if _, err := p.consume(
-		token.RightParen, "Expect ')' after loop condition",
+		token.RightParen, "expect ')' after loop condition",
 	); err != nil {
 		return nil, err
 	}
@@ -297,7 +361,7 @@ func (p *Parser) printStatement() (ast.Stmt, error) {
 	}
 
 	if _, err := p.consume(
-		token.Semicolon, "Expect ';' after expression",
+		token.Semicolon, "expect ';' after expression",
 	); err != nil {
 		return nil, err
 	}
@@ -312,7 +376,7 @@ func (p *Parser) expressionStatement() (ast.Stmt, error) {
 	}
 
 	if _, err := p.consume(
-		token.Semicolon, "Expect ';' after expression",
+		token.Semicolon, "expect ';' after expression",
 	); err != nil {
 		return nil, err
 	}
@@ -556,7 +620,7 @@ func (p *Parser) finishCall(callee ast.Expr) (ast.Expr, error) {
 		}
 	}
 
-	paren, err := p.consume(token.RightParen, "Expect ')' after arguments")
+	paren, err := p.consume(token.RightParen, "expect ')' after arguments")
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +648,7 @@ func (p *Parser) primary() (ast.Expr, error) {
 			return nil, err
 		}
 
-		_, err = p.consume(token.RightParen, "Expect ')' after expression")
+		_, err = p.consume(token.RightParen, "expect ')' after expression")
 		if err != nil {
 			return nil, err
 		}
