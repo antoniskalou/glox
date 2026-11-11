@@ -29,7 +29,9 @@ type Interpreter struct {
 }
 
 func New() *Interpreter {
-	return &Interpreter{env: newGlobal()}
+	env := newGlobal()
+	env.define("clock", clockFn)
+	return &Interpreter{env: env}
 }
 
 func (i *Interpreter) Interpret(statements []ast.Stmt) error {
