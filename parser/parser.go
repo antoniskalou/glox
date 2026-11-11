@@ -41,8 +41,9 @@ declaration    → varDecl
 
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
-statement      → exprStmt | ifStmt | printStmt | whileStmt | block ;
+statement      → exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
 exprStmt       → expression ";" ;
+forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
 ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 printStmt      → "print" expression ";" ;expression → equality ;
 whileStmt      → "while" "(" expression ")" statement ;
@@ -115,6 +116,8 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		return p.ifStatement()
 	case p.match(token.While):
 		return p.whileStatement()
+	case p.match(token.For):
+		return p.forStatement()
 	default:
 		return p.expressionStatement()
 	}
@@ -203,6 +206,86 @@ func (p *Parser) whileStatement() (ast.Stmt, error) {
 		Condition: condition,
 		Body:      body,
 	}, nil
+}
+
+// desugars into a while loop
+func (p *Parser) forStatement() (ast.Stmt, error) {
+	if _, err := p.consume(
+		token.LeftParen, "Expect '(' after 'for'",
+	); err != nil {
+		return nil, err
+	}
+
+	var err error
+	var init ast.Stmt
+	switch {
+	case p.match(token.Semicolon):
+		// do nothing, init stays null
+	case p.match(token.Var):
+		init, err = p.varDeclaration()
+	default:
+		init, err = p.expressionStatement()
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	var cond ast.Expr
+	if !p.check(token.Semicolon) {
+		cond, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if _, err := p.consume(
+		token.Semicolon, "Expect ';' after loop condition",
+	); err != nil {
+		return nil, err
+	}
+
+	var increment ast.Expr
+	if !p.check(token.RightParen) {
+		increment, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if _, err := p.consume(
+		token.RightParen, "Expect ')' after loop condition",
+	); err != nil {
+		return nil, err
+	}
+
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	if increment != nil {
+		body = ast.Block{
+			Statements: []ast.Stmt{
+				body,
+				ast.Expression{Expr: increment},
+			},
+		}
+	}
+
+	if cond == nil {
+		cond = ast.Literal{Value: true}
+	}
+
+	body = ast.While{Condition: cond, Body: body}
+
+	if init != nil {
+		body = ast.Block{
+			Statements: []ast.Stmt{init, body},
+		}
+	}
+
+	return body, nil
 }
 
 func (p *Parser) printStatement() (ast.Stmt, error) {
