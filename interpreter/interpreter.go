@@ -67,6 +67,17 @@ func execute(stmt ast.Stmt, env Environment) error {
 		env.define(stmt.Name.Lexeme, val)
 	case ast.Block:
 		return executeBlock(stmt.Statements, env)
+	case ast.If:
+		val, err := evaluate(stmt.Condition, env)
+		if err != nil {
+			return err
+		}
+
+		if isTruthy(val) {
+			return execute(stmt.ThenBranch, env)
+		} else if stmt.ElseBranch != nil {
+			return execute(stmt.ElseBranch, env)
+		}
 	}
 
 	return nil

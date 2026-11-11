@@ -41,7 +41,8 @@ declaration    → varDecl
 
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
-statement      → exprStmt | printStmt | block ;
+statement      → exprStmt | ifStmt | printStmt | block ;
+ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
 block          → "{" declaration* "}" ;
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;expression → equality ;
@@ -104,6 +105,8 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		return p.printStatement()
 	case p.match(token.LeftBrace):
 		return p.block()
+	case p.match(token.If):
+		return p.ifStatement()
 	default:
 		return p.expressionStatement()
 	}
@@ -127,6 +130,42 @@ func (p *Parser) block() (ast.Stmt, error) {
 	}
 
 	return ast.Block{Statements: statements}, nil
+}
+
+func (p *Parser) ifStatement() (ast.Stmt, error) {
+	if _, err := p.consume(token.LeftParen, "Expect '(' after 'if'"); err != nil {
+		return nil, err
+	}
+
+	condition, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.consume(
+		token.RightParen, "Expect ')' after if condition",
+	); err != nil {
+		return nil, err
+	}
+
+	thenBranch, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	var elseBranch ast.Stmt
+	if p.match(token.Else) {
+		elseBranch, err = p.statement()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return ast.If{
+		Condition:  condition,
+		ThenBranch: thenBranch,
+		ElseBranch: elseBranch,
+	}, nil
 }
 
 func (p *Parser) printStatement() (ast.Stmt, error) {
