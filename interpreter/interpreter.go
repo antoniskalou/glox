@@ -232,7 +232,7 @@ func evaluate(expr ast.Expr, env *Environment) (any, error) {
 			}
 		}
 
-		return fun.call(*env, args)
+		return fun.call(args)
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))
 	}

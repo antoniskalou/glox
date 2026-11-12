@@ -9,20 +9,20 @@ import (
 
 type Callable interface {
 	arity() int
-	call(env Environment, args []any) (any, error)
+	call(args []any) (any, error)
 }
 
 type NativeFn struct {
 	Arity int
-	Fn    func(env Environment, args []any) (any, error)
+	Fn    func(args []any) (any, error)
 }
 
 func (f NativeFn) arity() int {
 	return f.Arity
 }
 
-func (f NativeFn) call(env Environment, args []any) (any, error) {
-	return f.Fn(env, args)
+func (f NativeFn) call(args []any) (any, error) {
+	return f.Fn(args)
 }
 
 func (f NativeFn) String() string {
@@ -31,7 +31,7 @@ func (f NativeFn) String() string {
 
 var clockFn = NativeFn{
 	Arity: 0,
-	Fn: func(env Environment, args []any) (any, error) {
+	Fn: func(args []any) (any, error) {
 		return float64(time.Now().UnixMilli()) / 1000.0, nil
 	},
 }
@@ -45,7 +45,7 @@ func (f LoxFn) arity() int {
 	return len(f.Declaration.Params)
 }
 
-func (f LoxFn) call(env Environment, args []any) (any, error) {
+func (f LoxFn) call(args []any) (any, error) {
 	local := enclose(f.Closure)
 	for i, param := range f.Declaration.Params {
 		local = local.define(param.Lexeme, args[i])

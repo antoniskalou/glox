@@ -1,10 +1,45 @@
+fun note(msg) {
+	print "# " + msg;
+}
+
+fun ok(cond, msg) {
+	if (cond) {
+		print "ok";
+	} else {
+		print "not ok - " + msg;
+	}
+}
+
+note("closure can not see future declarations");
 var a = "global"
 {
-	fun showA() {
-		print a;
+	fun testA() {
+		ok(a == "global", "a is global");
 	}
 
-	showA(); // "global"
+	testA(); // "global"
 	var a = "block";
-	showA(); // "global"
+	testA(); // "global"
+}
+
+note("closures observe assignments");
+{
+	var a = 1;
+
+	fun showA() {
+		ok(a == 2, "a is 2");
+	}
+
+	a = 2;
+	showA();
+}
+
+note("recursive functions still work");
+{
+	fun factorial(n) {
+		if (n <= 1) return 1;
+		return n * factorial(n - 1);
+	}
+
+	ok(factorial(5) == 120, "factorial is 120");
 }
