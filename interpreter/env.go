@@ -32,9 +32,12 @@ func enclose(parent Environment) Environment {
 
 // creates a new environment version containing the bdingin.
 func (e Environment) define(name string, val any) Environment {
-	cell := cell{value: val}
+	return e.defineCell(name, &cell{value: val})
+}
+
+func (e Environment) defineCell(name string, cell *cell) Environment {
 	return Environment{
-		values: e.values.Set(name, &cell),
+		values: e.values.Set(name, cell),
 		parent: e.parent,
 	}
 }

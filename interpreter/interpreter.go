@@ -107,11 +107,18 @@ func execute(stmt ast.Stmt, env *Environment) error {
 			}
 		}
 	case ast.Function:
+		// create the cell before capturing the environment so that the function
+		// can reference itself recursively
+		cell := &cell{}
+
+		*env = env.defineCell(stmt.Name.Lexeme, cell)
+
 		fn := LoxFn{
 			Declaration: stmt,
 			Closure:     *env,
 		}
-		*env = env.define(stmt.Name.Lexeme, fn)
+
+		cell.value = fn
 	case ast.Return:
 		var err error
 		var val any
