@@ -53,3 +53,10 @@ type Function struct {
 }
 
 func (Function) isStmt() {}
+
+type Return struct {
+	Keyword token.Token
+	Value   Expr
+}
+
+func (Return) isStmt() {}

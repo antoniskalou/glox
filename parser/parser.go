@@ -29,42 +29,6 @@ func New(tokens []token.Token) *Parser {
 	}
 }
 
-/*
-Grammar:
-
-
-program        → declaration* EOF ;
-
-declaration    → funDecl | varDecl | statement ;
-
-funDecl        → "fun" function ;
-function       → IDENTIFIER "(" parameters? ")" block ;
-parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
-varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
-
-statement      → exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
-exprStmt       → expression ";" ;
-forStmt        → "for" "(" ( varDecl | exprStmt | ";" ) expression? ";" expression? ")" statement ;
-ifStmt         → "if" "(" expression ")" statement ( "else" statement )? ;
-printStmt      → "print" expression ";" ;expression → equality ;
-whileStmt      → "while" "(" expression ")" statement ;
-block          → "{" declaration* "}" ;
-
-expression     → assignment ;
-assignment     → IDENTIFIER "=" assignment | logic_or ;
-logic_or       → logic_and ( "or" logic_and )* ;
-logic_and      → equality ( "and" equality )* ;
-
-equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-term           → factor ( ( "-" | "+" ) factor )* ;
-factor         → unary ( ( "/" | "*" ) unary )* ;
-unary          → ( "!" | "-" ) unary | call ;
-call           → primary ( "(" arguments? ")" )* ;
-arguments      → expression ( "," expression )* ;
-primary        → NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")" | IDENTIFIER;
-*/
-
 func (p *Parser) Parse() ([]ast.Stmt, error) {
 	statements := make([]ast.Stmt, 0)
 
@@ -184,6 +148,8 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		return p.whileStatement()
 	case p.match(token.For):
 		return p.forStatement()
+	case p.match(token.Return):
+		return p.returnStatement()
 	default:
 		return p.expressionStatement()
 	}
@@ -352,6 +318,30 @@ func (p *Parser) forStatement() (ast.Stmt, error) {
 	}
 
 	return body, nil
+}
+
+func (p *Parser) returnStatement() (ast.Stmt, error) {
+	keyword := p.previous()
+
+	var err error
+	var val ast.Expr
+	if !p.check(token.Semicolon) {
+		val, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if _, err := p.consume(
+		token.Semicolon, "expect ';' after return value",
+	); err != nil {
+		return nil, err
+	}
+
+	return ast.Return{
+		Keyword: keyword,
+		Value:   val,
+	}, nil
 }
 
 func (p *Parser) printStatement() (ast.Stmt, error) {

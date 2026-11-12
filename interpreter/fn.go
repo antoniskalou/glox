@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"errors"
 	"time"
 
 	"github.com/antoniskalou/glox/ast"
@@ -49,7 +50,12 @@ func (f LoxFn) call(env Environment, args []any) (any, error) {
 		scoped.define(param.Lexeme, args[i])
 	}
 
-	err := executeBlock(f.Declaration.Body, scoped)
+	_, err := executeBlock(f.Declaration.Body, scoped)
+	// explicit return, give the value back
+	if signal, ok := errors.AsType[*ReturnSignal](err); ok {
+		return signal.Value, nil
+	}
+	// implicit return
 	return nil, err
 }
 

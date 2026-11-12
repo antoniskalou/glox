@@ -24,6 +24,14 @@ func (e *RuntimeError) Error() string {
 	return fmt.Sprintf("[line %d] %s: %s", e.Token.Line, e.Kind, e.Message)
 }
 
+type ReturnSignal struct {
+	Value any
+}
+
+func (e *ReturnSignal) Error() string {
+	return fmt.Sprintf("ReturnSignal: %v", e.Value)
+}
+
 type Interpreter struct {
 	env Environment
 }
@@ -68,7 +76,9 @@ func execute(stmt ast.Stmt, env Environment) error {
 		}
 		env.define(stmt.Name.Lexeme, val)
 	case ast.Block:
-		return executeBlock(stmt, env)
+		// we don't care about the value of a bare block
+		_, err := executeBlock(stmt, env)
+		return err
 	case ast.If:
 		val, err := evaluate(stmt.Condition, env)
 		if err != nil {
@@ -98,19 +108,32 @@ func execute(stmt ast.Stmt, env Environment) error {
 	case ast.Function:
 		fn := LoxFn{Declaration: stmt}
 		env.define(stmt.Name.Lexeme, fn)
+	case ast.Return:
+		var err error
+		var val any
+
+		if stmt.Value != nil {
+			val, err = evaluate(stmt.Value, env)
+
+			if err != nil {
+				return err
+			}
+		}
+
+		return &ReturnSignal{Value: val}
 	}
 
 	return nil
 }
 
-func executeBlock(block ast.Block, env Environment) error {
+func executeBlock(block ast.Block, env Environment) (any, error) {
 	scoped := newEnclosed(env)
 	for _, stmt := range block.Statements {
 		if err := execute(stmt, scoped); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func evaluate(expr ast.Expr, env Environment) (any, error) {
@@ -194,8 +217,8 @@ func evaluate(expr ast.Expr, env Environment) (any, error) {
 			return nil, &RuntimeError{
 				Token: expr.Paren,
 				Kind:  TypeError,
-				Message: fmt.Sprintf("%s expected %d arguments, got %d",
-					expr.Paren.Lexeme, fun.arity(), len(args)),
+				Message: fmt.Sprintf("expected %d arguments, got %d",
+					fun.arity(), len(args)),
 			}
 		}
 
