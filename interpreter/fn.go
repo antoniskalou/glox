@@ -38,6 +38,7 @@ var clockFn = NativeFn{
 
 type LoxFn struct {
 	Declaration ast.Function
+	Closure     Environment
 }
 
 func (f LoxFn) arity() int {
@@ -45,12 +46,12 @@ func (f LoxFn) arity() int {
 }
 
 func (f LoxFn) call(env Environment, args []any) (any, error) {
-	scoped := newEnclosed(env)
+	local := enclose(f.Closure)
 	for i, param := range f.Declaration.Params {
-		scoped.define(param.Lexeme, args[i])
+		local = local.define(param.Lexeme, args[i])
 	}
 
-	_, err := executeBlock(f.Declaration.Body, scoped)
+	_, err := executeBlock(f.Declaration.Body, local)
 	// explicit return, give the value back
 	if signal, ok := errors.AsType[*ReturnSignal](err); ok {
 		return signal.Value, nil

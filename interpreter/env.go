@@ -1,38 +1,51 @@
 package interpreter
 
-import "github.com/antoniskalou/glox/token"
+import (
+	"github.com/antoniskalou/glox/token"
+	"github.com/benbjohnson/immutable"
+)
+
+// Mutable variable storage
+type cell struct {
+	value any
+}
 
 type Environment struct {
-	values map[string]any
+	values *immutable.Map[string, *cell]
 	parent *Environment
 }
 
 // creates a "global" environment without an enclosing scope
-func newGlobal() Environment {
+func newEnv() Environment {
 	return Environment{
-		values: make(map[string]any),
+		values: immutable.NewMap[string, *cell](nil),
 	}
 }
 
 // create a new environment that is enclosed by another environment
-func newEnclosed(env Environment) Environment {
+func enclose(parent Environment) Environment {
 	return Environment{
-		values: make(map[string]any),
-		parent: &env,
+		values: immutable.NewMap[string, *cell](nil),
+		parent: &parent,
 	}
 }
 
-func (e Environment) define(name string, val any) {
-	e.values[name] = val
+// creates a new environment version containing the bdingin.
+func (e Environment) define(name string, val any) Environment {
+	cell := cell{value: val}
+	return Environment{
+		values: e.values.Set(name, &cell),
+		parent: e.parent,
+	}
 }
 
+// assign updates an existing binding through mutation
 func (e Environment) assign(name token.Token, val any) bool {
-	if _, ok := e.values[name.Lexeme]; ok {
-		e.values[name.Lexeme] = val
+	if cell, ok := e.values.Get(name.Lexeme); ok {
+		cell.value = val
 		return true
 	}
 
-	// failed, try the parent
 	if e.parent != nil {
 		return e.parent.assign(name, val)
 	}
@@ -41,12 +54,13 @@ func (e Environment) assign(name token.Token, val any) bool {
 }
 
 func (e Environment) get(name token.Token) (any, bool) {
-	val, ok := e.values[name.Lexeme]
+	if cell, ok := e.values.Get(name.Lexeme); ok {
+		return cell.value, true
+	}
 
-	// try and fetch from enclosing env
-	if !ok && e.parent != nil {
+	if e.parent != nil {
 		return e.parent.get(name)
 	}
 
-	return val, ok
+	return nil, false
 }

@@ -1,0 +1,10 @@
+{
+	var a = 10;
+	fun showA() {
+		print a;
+	}
+
+	var a = 20;
+	showA();
+	print a;
+}

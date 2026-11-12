@@ -1,0 +1,19 @@
+{
+	var a = 10;
+
+	fun addOne() {
+		a = a + 1;
+	}
+
+	print a;
+	addOne();
+	print a;
+}
+
+{
+	{
+		var a = 1;
+	}
+
+	print a;
+}

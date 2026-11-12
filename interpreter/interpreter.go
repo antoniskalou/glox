@@ -37,14 +37,14 @@ type Interpreter struct {
 }
 
 func New() *Interpreter {
-	env := newGlobal()
-	env.define("clock", clockFn)
+	env := newEnv().define("clock", clockFn)
 	return &Interpreter{env: env}
 }
 
 func (i *Interpreter) Interpret(statements []ast.Stmt) error {
+	var err error
 	for _, stmt := range statements {
-		if err := execute(stmt, i.env); err != nil {
+		if err = execute(stmt, &i.env); err != nil {
 			return err
 		}
 	}
@@ -52,7 +52,7 @@ func (i *Interpreter) Interpret(statements []ast.Stmt) error {
 	return nil
 }
 
-func execute(stmt ast.Stmt, env Environment) error {
+func execute(stmt ast.Stmt, env *Environment) error {
 	switch stmt := stmt.(type) {
 	case ast.Expression:
 		if _, err := evaluate(stmt.Expr, env); err != nil {
@@ -74,10 +74,11 @@ func execute(stmt ast.Stmt, env Environment) error {
 				return err
 			}
 		}
-		env.define(stmt.Name.Lexeme, val)
+
+		*env = env.define(stmt.Name.Lexeme, val)
 	case ast.Block:
 		// we don't care about the value of a bare block
-		_, err := executeBlock(stmt, env)
+		_, err := executeBlock(stmt, *env)
 		return err
 	case ast.If:
 		val, err := evaluate(stmt.Condition, env)
@@ -106,15 +107,17 @@ func execute(stmt ast.Stmt, env Environment) error {
 			}
 		}
 	case ast.Function:
-		fn := LoxFn{Declaration: stmt}
-		env.define(stmt.Name.Lexeme, fn)
+		fn := LoxFn{
+			Declaration: stmt,
+			Closure:     *env,
+		}
+		*env = env.define(stmt.Name.Lexeme, fn)
 	case ast.Return:
 		var err error
 		var val any
 
 		if stmt.Value != nil {
 			val, err = evaluate(stmt.Value, env)
-
 			if err != nil {
 				return err
 			}
@@ -127,16 +130,16 @@ func execute(stmt ast.Stmt, env Environment) error {
 }
 
 func executeBlock(block ast.Block, env Environment) (any, error) {
-	scoped := newEnclosed(env)
+	scoped := enclose(env)
 	for _, stmt := range block.Statements {
-		if err := execute(stmt, scoped); err != nil {
+		if err := execute(stmt, &scoped); err != nil {
 			return nil, err
 		}
 	}
 	return nil, nil
 }
 
-func evaluate(expr ast.Expr, env Environment) (any, error) {
+func evaluate(expr ast.Expr, env *Environment) (any, error) {
 	switch expr := expr.(type) {
 	case ast.Literal:
 		return expr.Value, nil
@@ -222,13 +225,13 @@ func evaluate(expr ast.Expr, env Environment) (any, error) {
 			}
 		}
 
-		return fun.call(env, args)
+		return fun.call(*env, args)
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))
 	}
 }
 
-func evalUnary(expr ast.Unary, env Environment) (any, error) {
+func evalUnary(expr ast.Unary, env *Environment) (any, error) {
 	right, err := evaluate(expr.Right, env)
 	if err != nil {
 		return nil, err
@@ -244,7 +247,7 @@ func evalUnary(expr ast.Unary, env Environment) (any, error) {
 	panic("unreachable")
 }
 
-func evalBinary(expr ast.Binary, env Environment) (any, error) {
+func evalBinary(expr ast.Binary, env *Environment) (any, error) {
 	left, err := evaluate(expr.Left, env)
 	if err != nil {
 		return nil, err
