@@ -12,6 +12,7 @@ type RuntimeErrorKind string
 const (
 	TypeError  RuntimeErrorKind = "Type error"
 	ValueError RuntimeErrorKind = "Value error"
+	NameError  RuntimeErrorKind = "Name error"
 )
 
 type RuntimeError struct {
@@ -161,7 +162,7 @@ func evaluate(expr ast.Expr, env *Environment) (any, error) {
 		if !ok {
 			return nil, &RuntimeError{
 				Token:   expr.Name,
-				Kind:    ValueError, // is it really a "value" error?
+				Kind:    NameError, // is it really a "value" error?
 				Message: fmt.Sprintf("variable %q is undefined", expr.Name.Lexeme),
 			}
 		}
@@ -175,7 +176,7 @@ func evaluate(expr ast.Expr, env *Environment) (any, error) {
 		if !env.assign(expr.Name, val) {
 			return nil, &RuntimeError{
 				Token:   expr.Name,
-				Kind:    ValueError,
+				Kind:    NameError,
 				Message: fmt.Sprintf("undefined variable %q", expr.Name.Lexeme),
 			}
 		}
