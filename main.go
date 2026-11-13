@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/antoniskalou/glox/ast"
 	"github.com/antoniskalou/glox/interpreter"
 	"github.com/antoniskalou/glox/parser"
 	"github.com/antoniskalou/glox/resolver"
@@ -79,25 +78,20 @@ func run(inter *interpreter.Interpreter, source string) error {
 	}
 
 	parser := parser.New(tokens)
-	statements, err := parser.Parse()
+	ast, err := parser.Parse()
 	if err != nil {
 		return err
 	}
 
 	if debug {
-		ast, err := ast.FormatMany(statements)
-		if err != nil {
-			return err
-		}
-		fmt.Println("[DEBUG] AST:", ast)
+		fmt.Printf("%+v", ast)
 	}
 
-	resolver := resolver.New()
-	res, err := resolver.Resolve(statements)
+	res, err := resolver.New().Resolve(ast)
 	if err != nil {
 		return err
 	}
-	fmt.Println("resolved with:", res)
+	// fmt.Println("resolved with:", res)
 
-	return inter.Interpret(statements)
+	return inter.Interpret(ast, res)
 }

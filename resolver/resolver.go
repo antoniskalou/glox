@@ -43,12 +43,12 @@ func New() *Resolver {
 	}
 }
 
-func (r *Resolver) Resolve(statements []ast.Stmt) (Resolution, error) {
+func (r *Resolver) Resolve(ast ast.AST) (Resolution, error) {
 	result := Resolution{
 		locals: make(map[token.Token]int),
 	}
 
-	if err := r.resolve(statements, &result); err != nil {
+	if err := r.resolve(ast, &result); err != nil {
 		return Resolution{}, err
 	}
 

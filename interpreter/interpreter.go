@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/antoniskalou/glox/ast"
+	"github.com/antoniskalou/glox/resolver"
 	"github.com/antoniskalou/glox/token"
 )
 
@@ -43,9 +44,12 @@ func New() *Interpreter {
 	return &Interpreter{env: env}
 }
 
-func (i *Interpreter) Interpret(statements []ast.Stmt) error {
+func (i *Interpreter) Interpret(
+	ast ast.AST,
+	res resolver.Resolution,
+) error {
 	var err error
-	for _, stmt := range statements {
+	for _, stmt := range ast {
 		if err = execute(stmt, &i.env); err != nil {
 			return err
 		}

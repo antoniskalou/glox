@@ -94,3 +94,37 @@ func (e Environment) get(name token.Token) (any, bool) {
 
 	return nil, false
 }
+
+// attempt to get a variable at the given distance from the current env
+func (e Environment) getAt(distance int, name string) (any, bool) {
+	env := e.ancestor(distance)
+
+	c, ok := env.values.Get(name)
+	if !ok {
+		return nil, false
+	}
+
+	return c.value, true
+}
+
+// attempt to assign a variable at the given distance from the current env
+func (e Environment) assignAt(distance int, name string, value any) bool {
+	env := e.ancestor(distance)
+
+	c, ok := env.values.Get(name)
+	if !ok {
+		return false
+	}
+
+	c.value = value
+	return true
+}
+
+// walks the environment upwards
+func (e Environment) ancestor(distance int) Environment {
+	env := &e
+	for range distance {
+		env = env.parent
+	}
+	return *env
+}

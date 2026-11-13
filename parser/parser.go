@@ -29,8 +29,8 @@ func New(tokens []token.Token) *Parser {
 	}
 }
 
-func (p *Parser) Parse() ([]ast.Stmt, error) {
-	statements := make([]ast.Stmt, 0)
+func (p *Parser) Parse() (ast.AST, error) {
+	statements := make(ast.AST, 0)
 
 	for !p.isAtEnd() {
 		stmt, err := p.declaration()
