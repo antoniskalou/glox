@@ -78,9 +78,7 @@ func execute(stmt ast.Stmt, env *Environment) error {
 
 		*env = env.define(stmt.Name.Lexeme, val)
 	case ast.Block:
-		// we don't care about the value of a bare block
-		_, err := executeBlock(stmt, *env)
-		return err
+		return executeBlock(stmt, *env)
 	case ast.If:
 		val, err := evaluate(stmt.Condition, env)
 		if err != nil {
@@ -137,14 +135,14 @@ func execute(stmt ast.Stmt, env *Environment) error {
 	return nil
 }
 
-func executeBlock(block ast.Block, env Environment) (any, error) {
+func executeBlock(block ast.Block, env Environment) error {
 	scoped := enclose(env)
 	for _, stmt := range block.Statements {
 		if err := execute(stmt, &scoped); err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 func evaluate(expr ast.Expr, env *Environment) (any, error) {

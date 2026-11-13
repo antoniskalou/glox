@@ -51,7 +51,7 @@ func (f LoxFn) call(args []any) (any, error) {
 		local = local.define(param.Lexeme, args[i])
 	}
 
-	_, err := executeBlock(f.Declaration.Body, local)
+	err := executeBlock(f.Declaration.Body, local)
 	// explicit return, give the value back
 	if signal, ok := errors.AsType[*ReturnSignal](err); ok {
 		return signal.Value, nil
