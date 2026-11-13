@@ -120,8 +120,8 @@ func (r *Resolver) resolveStmt(stmt ast.Stmt, result *Resolution) error {
 		return r.resolveStmt(stmt.Body, result)
 	case ast.Block:
 		r.beginScope()
-		r.resolve(stmt.Statements, result)
-		r.endScope()
+		defer r.endScope()
+		return r.resolve(stmt.Statements, result)
 	default:
 		panic(fmt.Sprintf("logic error, unhandled statement type: %T", stmt))
 	}
@@ -133,11 +133,12 @@ func (r *Resolver) resolveExpr(expr ast.Expr, result *Resolution) error {
 	switch expr := expr.(type) {
 	case ast.Variable:
 		scope, ok := r.scopes.peek()
-		// FIXME: will fail if expr doesn't exist
-		if ok && scope[expr.Name.Lexeme] == false {
-			return &ResolverError{
-				Token:   expr.Name,
-				Message: "can't read local variable in its own initalizer",
+		if ok {
+			if defined, exists := scope[expr.Name.Lexeme]; exists && !defined {
+				return &ResolverError{
+					Token:   expr.Name,
+					Message: "can't read local variable in its own initalizer",
+				}
 			}
 		}
 
@@ -204,14 +205,14 @@ func (r *Resolver) resolveFunction(
 		}
 		r.define(param)
 	}
-	r.resolve(body.Statements, result)
 
-	return nil
+	return r.resolve(body.Statements, result)
 }
 
 func (r *Resolver) resolveLocal(name token.Token, result *Resolution) {
-	for depth, scope := range r.scopes.iter() {
+	for i, scope := range r.scopes.iter() {
 		if _, ok := scope[name.Lexeme]; ok {
+			depth := r.scopes.size() - 1 - i
 			result.locals[name] = depth
 			return
 		}
