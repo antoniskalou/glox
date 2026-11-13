@@ -9,6 +9,12 @@ type stack[T any] struct {
 	items []T
 }
 
+func newStack[T any](cap int) *stack[T] {
+	return &stack[T]{
+		items: make([]T, 0, cap),
+	}
+}
+
 func (s *stack[T]) push(item T) {
 	s.items = append(s.items, item)
 }

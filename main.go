@@ -10,6 +10,7 @@ import (
 	"github.com/antoniskalou/glox/ast"
 	"github.com/antoniskalou/glox/interpreter"
 	"github.com/antoniskalou/glox/parser"
+	"github.com/antoniskalou/glox/resolver"
 	"github.com/antoniskalou/glox/scanner"
 )
 
@@ -90,6 +91,13 @@ func run(inter *interpreter.Interpreter, source string) error {
 		}
 		fmt.Println("[DEBUG] AST:", ast)
 	}
+
+	resolver := resolver.New()
+	res, err := resolver.Resolve(statements)
+	if err != nil {
+		return err
+	}
+	fmt.Println("resolved with:", res)
 
 	return inter.Interpret(statements)
 }

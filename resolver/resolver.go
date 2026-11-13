@@ -25,48 +25,103 @@ func (r Resolution) Distance(name token.Token) (int, bool) {
 	return depth, ok
 }
 
+type functionType uint8
+
+const (
+	functionTypeNone functionType = iota
+	functionTypeFunction
+)
+
 type Resolver struct {
-	scopes stack[map[string]bool]
+	scopes          *stack[map[string]bool]
+	currentFunction functionType
 }
 
-func (r *Resolver) Resolve(statements []ast.Stmt) error {
+func New() *Resolver {
+	return &Resolver{
+		scopes: newStack[map[string]bool](0),
+	}
+}
+
+func (r *Resolver) Resolve(statements []ast.Stmt) (Resolution, error) {
+	result := Resolution{
+		locals: make(map[token.Token]int),
+	}
+
+	if err := r.resolve(statements, &result); err != nil {
+		return Resolution{}, err
+	}
+
+	return result, nil
+}
+
+func (r *Resolver) resolve(statements []ast.Stmt, result *Resolution) error {
 	for _, stmt := range statements {
-		if err := r.resolveStmt(stmt); err != nil {
+		if err := r.resolveStmt(stmt, result); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
-func (r *Resolver) resolveStmt(stmt ast.Stmt) error {
+func (r *Resolver) resolveStmt(stmt ast.Stmt, result *Resolution) error {
 	switch stmt := stmt.(type) {
 	case ast.Var:
-		r.declare(stmt.Name)
+		if err := r.declare(stmt.Name); err != nil {
+			return err
+		}
+
 		if stmt.Initializer != nil {
-			r.resolveExpr(stmt.Initializer)
+			if err := r.resolveExpr(stmt.Initializer, result); err != nil {
+				return err
+			}
 		}
 		r.define(stmt.Name)
 	case ast.Function:
-		r.declare(stmt.Name)
+		if err := r.declare(stmt.Name); err != nil {
+			return err
+		}
 		r.define(stmt.Name)
-		r.resolveFunction(stmt.Params, stmt.Body)
+		return r.resolveFunction(
+			stmt.Params, stmt.Body, functionTypeFunction, result,
+		)
 	case ast.Expression:
-		r.resolveExpr(stmt.Expr)
+		return r.resolveExpr(stmt.Expr, result)
 	case ast.If:
-		r.resolveExpr(stmt.Condition)
-		r.resolveStmt(stmt.ThenBranch)
+		if err := r.resolveExpr(stmt.Condition, result); err != nil {
+			return err
+		}
+
+		if err := r.resolveStmt(stmt.ThenBranch, result); err != nil {
+			return err
+		}
+
 		if stmt.ElseBranch != nil {
-			r.resolveStmt(stmt.ElseBranch)
+			return r.resolveStmt(stmt.ElseBranch, result)
 		}
 	case ast.Print:
-		r.resolveExpr(stmt.Expr)
+		return r.resolveExpr(stmt.Expr, result)
 	case ast.Return:
+		if r.currentFunction == functionTypeNone {
+			return &ResolverError{
+				Token:   stmt.Keyword,
+				Message: "can't return from top-level code",
+			}
+		}
+
 		if stmt.Value != nil {
-			r.resolveExpr(stmt.Value)
+			return r.resolveExpr(stmt.Value, result)
 		}
 	case ast.While:
-		r.resolveExpr(stmt.Condition)
-		r.resolveStmt(stmt.Body)
+		if err := r.resolveExpr(stmt.Condition, result); err != nil {
+			return err
+		}
+		return r.resolveStmt(stmt.Body, result)
+	case ast.Block:
+		r.beginScope()
+		r.resolve(stmt.Statements, result)
+		r.endScope()
 	default:
 		panic(fmt.Sprintf("logic error, unhandled statement type: %T", stmt))
 	}
@@ -74,7 +129,7 @@ func (r *Resolver) resolveStmt(stmt ast.Stmt) error {
 	return nil
 }
 
-func (r *Resolver) resolveExpr(expr ast.Expr) error {
+func (r *Resolver) resolveExpr(expr ast.Expr, result *Resolution) error {
 	switch expr := expr.(type) {
 	case ast.Variable:
 		scope, ok := r.scopes.peek()
@@ -86,29 +141,42 @@ func (r *Resolver) resolveExpr(expr ast.Expr) error {
 			}
 		}
 
-		r.resolveLocal(expr, expr.Name)
+		r.resolveLocal(expr.Name, result)
 	case ast.Assign:
-		r.resolveExpr(expr.Value)
-		r.resolveLocal(expr, expr.Name)
+		if err := r.resolveExpr(expr.Value, result); err != nil {
+			return err
+		}
+		r.resolveLocal(expr.Name, result)
 	case ast.Binary:
-		r.resolveExpr(expr.Left)
-		r.resolveExpr(expr.Right)
+		if err := r.resolveExpr(expr.Left, result); err != nil {
+			return err
+		}
+		return r.resolveExpr(expr.Right, result)
 	case ast.Logical:
-		r.resolveExpr(expr.Left)
-		r.resolveExpr(expr.Right)
+		if err := r.resolveExpr(expr.Left, result); err != nil {
+			return err
+		}
+		return r.resolveExpr(expr.Right, result)
 	case ast.Unary:
-		r.resolveExpr(expr.Right)
+		return r.resolveExpr(expr.Right, result)
 	case ast.Call:
-		r.resolveExpr(expr.Callee)
+		if err := r.resolveExpr(expr.Callee, result); err != nil {
+			return err
+		}
+
 		for _, arg := range expr.Arguments {
-			r.resolveExpr(arg)
+			if err := r.resolveExpr(arg, result); err != nil {
+				return err
+			}
 		}
 	case ast.Grouping:
-		r.resolveExpr(expr.Expr)
+		return r.resolveExpr(expr.Expr, result)
 	case ast.Literal:
 		// do nothing
 	case ast.FunctionExpr:
-		r.resolveFunction(expr.Params, expr.Body)
+		return r.resolveFunction(
+			expr.Params, expr.Body, functionTypeFunction, result,
+		)
 	default:
 		panic(fmt.Sprintf("logic error, unhandled expression type: %T", expr))
 	}
@@ -116,21 +184,35 @@ func (r *Resolver) resolveExpr(expr ast.Expr) error {
 	return nil
 }
 
-func (r *Resolver) resolveFunction(params []token.Token, body ast.Block) {
+func (r *Resolver) resolveFunction(
+	params []token.Token,
+	body ast.Block,
+	ftype functionType,
+	result *Resolution,
+) error {
+	encosingFun := r.currentFunction
+	defer func() {
+		r.currentFunction = encosingFun
+	}()
+	r.currentFunction = ftype
+
 	r.beginScope()
 	defer r.endScope()
 	for _, param := range params {
-		r.declare(param)
+		if err := r.declare(param); err != nil {
+			return err
+		}
 		r.define(param)
 	}
-	r.Resolve(body.Statements)
+	r.resolve(body.Statements, result)
+
+	return nil
 }
 
-func (r *Resolver) resolveLocal(expr ast.Expr, name token.Token) {
+func (r *Resolver) resolveLocal(name token.Token, result *Resolution) {
 	for depth, scope := range r.scopes.iter() {
 		if _, ok := scope[name.Lexeme]; ok {
-			fmt.Println("expr:", expr, "depth:", depth)
-			// TODO: interpreter resolve?
+			result.locals[name] = depth
 			return
 		}
 	}
