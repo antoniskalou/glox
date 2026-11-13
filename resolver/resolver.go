@@ -16,6 +16,15 @@ func (e *ResolverError) Error() string {
 	return fmt.Sprintf("[line %d] Resolver error: %s", e.Token.Line, e.Message)
 }
 
+type Resolution struct {
+	locals map[token.Token]int
+}
+
+func (r Resolution) Distance(name token.Token) (int, bool) {
+	depth, ok := r.locals[name]
+	return depth, ok
+}
+
 type Resolver struct {
 	scopes stack[map[string]bool]
 }
@@ -127,13 +136,22 @@ func (r *Resolver) resolveLocal(expr ast.Expr, name token.Token) {
 	}
 }
 
-func (r *Resolver) declare(name token.Token) {
+func (r *Resolver) declare(name token.Token) error {
 	scope, ok := r.scopes.peek()
 	if !ok {
-		return
+		return nil
 	}
+
+	if _, ok := scope[name.Lexeme]; ok {
+		return &ResolverError{
+			Token:   name,
+			Message: "already a variable with this name in this scope",
+		}
+	}
+
 	// false means "its not ready"
 	scope[name.Lexeme] = false
+	return nil
 }
 
 func (r *Resolver) define(name token.Token) {
