@@ -13,12 +13,25 @@ type cell struct {
 type Environment struct {
 	values *immutable.Map[string, *cell]
 	parent *Environment
+	global *globalStore
+}
+
+// global vars are treated differently and they have a "dynamic" scope, as in
+// globals defined later in the program are still accessible in places defined
+// before the global definition.
+//
+// Because of this, the store in a plain mutable map.
+type globalStore struct {
+	values map[string]any
 }
 
 // creates a "global" environment without an enclosing scope
 func newEnv() Environment {
 	return Environment{
 		values: immutable.NewMap[string, *cell](nil),
+		global: &globalStore{
+			values: make(map[string]any),
+		},
 	}
 }
 
@@ -27,6 +40,7 @@ func enclose(parent Environment) Environment {
 	return Environment{
 		values: immutable.NewMap[string, *cell](nil),
 		parent: &parent,
+		global: parent.global,
 	}
 }
 
@@ -39,7 +53,16 @@ func (e Environment) defineCell(name string, cell *cell) Environment {
 	return Environment{
 		values: e.values.Set(name, cell),
 		parent: e.parent,
+		global: e.global,
 	}
+}
+
+func (e Environment) defineGlobal(name string, val any) {
+	e.global.values[name] = val
+}
+
+func (e Environment) isGlobal() bool {
+	return e.parent == nil
 }
 
 // assign updates an existing binding through mutation
@@ -63,6 +86,10 @@ func (e Environment) get(name token.Token) (any, bool) {
 
 	if e.parent != nil {
 		return e.parent.get(name)
+	}
+
+	if c, ok := e.global.values[name.Lexeme]; ok {
+		return c, true
 	}
 
 	return nil, false

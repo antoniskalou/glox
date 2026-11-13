@@ -34,6 +34,7 @@ func (e *ReturnSignal) Error() string {
 }
 
 type Interpreter struct {
+	// current environment passed to statements being executed
 	env Environment
 }
 
@@ -76,7 +77,11 @@ func execute(stmt ast.Stmt, env *Environment) error {
 			}
 		}
 
-		*env = env.define(stmt.Name.Lexeme, val)
+		if env.isGlobal() {
+			env.defineGlobal(stmt.Name.Lexeme, val)
+		} else {
+			*env = env.define(stmt.Name.Lexeme, val)
+		}
 	case ast.Block:
 		return executeBlock(stmt, *env)
 	case ast.If:

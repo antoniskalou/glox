@@ -1,0 +1,7 @@
+fun showA() {
+	print a;
+}
+
+var a = "global";
+// the reference lox implementation expects this to work and print "global".
+showA();
