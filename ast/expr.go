@@ -61,3 +61,12 @@ type Call struct {
 }
 
 func (Call) isExpr() {}
+
+// a function expression, aka an anonymous function
+type FunctionExpr struct {
+	Keyword token.Token
+	Params  []token.Token
+	Body    Block
+}
+
+func (FunctionExpr) isExpr() {}

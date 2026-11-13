@@ -237,6 +237,14 @@ func evaluate(expr ast.Expr, env *Environment) (any, error) {
 		}
 
 		return fun.call(args)
+	case ast.FunctionExpr:
+		return LoxFn{
+			Declaration: ast.Function{
+				Params: expr.Params,
+				Body:   expr.Body,
+			},
+			Closure: *env,
+		}, nil
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))
 	}

@@ -46,7 +46,9 @@ func (p *Parser) Parse() ([]ast.Stmt, error) {
 }
 
 func (p *Parser) declaration() (ast.Stmt, error) {
-	if p.match(token.Fun) {
+	// named functions only
+	if p.check(token.Fun) && p.checkNext(token.Identifier) {
+		p.advance()
 		return p.function("function")
 	}
 
@@ -63,17 +65,30 @@ func (p *Parser) function(kind string) (ast.Stmt, error) {
 		return nil, err
 	}
 
+	params, body, err := p.functionBody(kind)
+	if err != nil {
+		return nil, err
+	}
+
+	return ast.Function{
+		Name:   name,
+		Params: params,
+		Body:   body,
+	}, nil
+}
+
+func (p *Parser) functionBody(kind string) ([]token.Token, ast.Block, error) {
 	if _, err := p.consume(
 		token.LeftParen, "expect '(' after "+kind+" name",
 	); err != nil {
-		return nil, err
+		return nil, ast.Block{}, err
 	}
 
 	params := make([]token.Token, 0)
 	if !p.check(token.RightParen) {
 		for {
 			if len(params) > 255 {
-				return nil, &ParseError{
+				return nil, ast.Block{}, &ParseError{
 					Token:   p.peek(),
 					Message: "can't have more than 255 parameters",
 				}
@@ -81,7 +96,7 @@ func (p *Parser) function(kind string) (ast.Stmt, error) {
 
 			param, err := p.consume(token.Identifier, "expect parameter name")
 			if err != nil {
-				return nil, err
+				return nil, ast.Block{}, err
 			}
 
 			params = append(params, param)
@@ -95,25 +110,21 @@ func (p *Parser) function(kind string) (ast.Stmt, error) {
 	if _, err := p.consume(
 		token.RightParen, "expect ')' after parameters",
 	); err != nil {
-		return nil, err
+		return nil, ast.Block{}, err
 	}
 
 	if _, err := p.consume(
 		token.LeftBrace, "expect '{' before "+kind+" body",
 	); err != nil {
-		return nil, err
+		return nil, ast.Block{}, err
 	}
 
 	body, err := p.block()
 	if err != nil {
-		return nil, err
+		return nil, ast.Block{}, err
 	}
 
-	return ast.Function{
-		Name:   name,
-		Params: params,
-		Body:   body.(ast.Block), // shouldn't fail
-	}, nil
+	return params, body.(ast.Block), nil
 }
 
 func (p *Parser) varDeclaration() (ast.Stmt, error) {
@@ -369,6 +380,13 @@ func (p *Parser) expressionStatement() (ast.Stmt, error) {
 		token.Semicolon, "expect ';' after expression",
 	); err != nil {
 		return nil, err
+	}
+
+	if keyword, ok := bareFunctionExpr(expr); ok {
+		return nil, &ParseError{
+			Token:   keyword,
+			Message: "anonymous function must be called or used in an expression",
+		}
 	}
 
 	return ast.Expression{Expr: expr}, nil
@@ -648,12 +666,36 @@ func (p *Parser) primary() (ast.Expr, error) {
 		return ast.Variable{
 			Name: p.previous(),
 		}, nil
+	case p.match(token.Fun):
+		keyword := p.previous()
+
+		params, body, err := p.functionBody("function")
+		if err != nil {
+			return nil, err
+		}
+
+		return ast.FunctionExpr{
+			Keyword: keyword,
+			Params:  params,
+			Body:    body,
+		}, nil
 	default:
 		token := p.peek()
 		return nil, &ParseError{
 			Token:   token,
 			Message: fmt.Sprintf("%q is not a valid expression", token.Lexeme),
 		}
+	}
+}
+
+func bareFunctionExpr(expr ast.Expr) (token.Token, bool) {
+	switch expr := expr.(type) {
+	case ast.FunctionExpr:
+		return expr.Keyword, true
+	case ast.Grouping:
+		return bareFunctionExpr(expr.Expr)
+	default:
+		return token.Token{}, false
 	}
 }
 
@@ -696,6 +738,12 @@ func (p *Parser) match(types ...token.TokenType) bool {
 	}
 
 	return false
+}
+
+// returns true if the next token is of a given type
+func (p *Parser) checkNext(typ token.TokenType) bool {
+	return p.current+1 < len(p.tokens) &&
+		p.tokens[p.current+1].Type == typ
 }
 
 // returns true if the current token is of the given type
