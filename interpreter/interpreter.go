@@ -34,23 +34,45 @@ func (e *ReturnSignal) Error() string {
 	return fmt.Sprintf("ReturnSignal: %v", e.Value)
 }
 
+type executor struct {
+	scope   *Environment
+	globals *Environment
+	res     resolver.Resolution
+}
+
+func (e executor) withScope(scope Environment) executor {
+	exec := e
+	exec.scope = &scope
+	return exec
+}
+
 type Interpreter struct {
-	// current environment passed to statements being executed
-	env Environment
+	// global vars are treated differently and they have a "dynamic" scope, as in
+	// globals defined later in the program are still accessible in places defined
+	// before the global definition.
+	//
+	// Because of this, the store in a plain mutable map.
+	globals Environment
 }
 
 func New() *Interpreter {
-	env := newEnv().define("clock", clockFn)
-	return &Interpreter{env: env}
+	return &Interpreter{
+		globals: newEnv().define("clock", clockFn),
+	}
 }
 
 func (i *Interpreter) Interpret(
 	ast ast.AST,
 	res resolver.Resolution,
 ) error {
-	var err error
+	exec := executor{
+		globals: &i.globals,
+		scope:   &i.globals,
+		res:     res,
+	}
+
 	for _, stmt := range ast {
-		if err = execute(stmt, &i.env); err != nil {
+		if err := execute(stmt, exec); err != nil {
 			return err
 		}
 	}
@@ -58,14 +80,14 @@ func (i *Interpreter) Interpret(
 	return nil
 }
 
-func execute(stmt ast.Stmt, env *Environment) error {
+func execute(stmt ast.Stmt, exec executor) error {
 	switch stmt := stmt.(type) {
 	case ast.Expression:
-		if _, err := evaluate(stmt.Expr, env); err != nil {
+		if _, err := evaluate(stmt.Expr, exec); err != nil {
 			return err
 		}
 	case ast.Print:
-		val, err := evaluate(stmt.Expr, env)
+		val, err := evaluate(stmt.Expr, exec)
 		if err != nil {
 			return err
 		}
@@ -75,33 +97,29 @@ func execute(stmt ast.Stmt, env *Environment) error {
 		var err error
 		// var is nil if not initalized
 		if stmt.Initializer != nil {
-			val, err = evaluate(stmt.Initializer, env)
+			val, err = evaluate(stmt.Initializer, exec)
 			if err != nil {
 				return err
 			}
 		}
 
-		if env.isGlobal() {
-			env.defineGlobal(stmt.Name.Lexeme, val)
-		} else {
-			*env = env.define(stmt.Name.Lexeme, val)
-		}
+		*exec.scope = exec.scope.define(stmt.Name.Lexeme, val)
 	case ast.Block:
-		return executeBlock(stmt, env)
+		return executeBlock(stmt, exec)
 	case ast.If:
-		val, err := evaluate(stmt.Condition, env)
+		val, err := evaluate(stmt.Condition, exec)
 		if err != nil {
 			return err
 		}
 
 		if isTruthy(val) {
-			return execute(stmt.ThenBranch, env)
+			return execute(stmt.ThenBranch, exec)
 		} else if stmt.ElseBranch != nil {
-			return execute(stmt.ElseBranch, env)
+			return execute(stmt.ElseBranch, exec)
 		}
 	case ast.While:
 		for {
-			val, err := evaluate(stmt.Condition, env)
+			val, err := evaluate(stmt.Condition, exec)
 			if err != nil {
 				return err
 			}
@@ -110,7 +128,7 @@ func execute(stmt ast.Stmt, env *Environment) error {
 				break
 			}
 
-			if err := execute(stmt.Body, env); err != nil {
+			if err := execute(stmt.Body, exec); err != nil {
 				return err
 			}
 		}
@@ -119,11 +137,13 @@ func execute(stmt ast.Stmt, env *Environment) error {
 		// can reference itself recursively
 		cell := &cell{}
 
-		*env = env.defineCell(stmt.Name.Lexeme, cell)
+		*exec.scope = exec.scope.defineCell(stmt.Name.Lexeme, cell)
 
 		fn := LoxFn{
 			Declaration: stmt,
-			Closure:     *env,
+			Closure:     *exec.scope,
+			Globals:     exec.globals,
+			Resolution:  exec.res,
 		}
 
 		cell.value = fn
@@ -132,7 +152,7 @@ func execute(stmt ast.Stmt, env *Environment) error {
 		var val any
 
 		if stmt.Value != nil {
-			val, err = evaluate(stmt.Value, env)
+			val, err = evaluate(stmt.Value, exec)
 			if err != nil {
 				return err
 			}
@@ -144,32 +164,32 @@ func execute(stmt ast.Stmt, env *Environment) error {
 	return nil
 }
 
-func executeBlock(block ast.Block, env *Environment) error {
-	scoped := enclose(*env)
-	return executeBlockIn(block, &scoped)
+func executeBlock(block ast.Block, exec executor) error {
+	scoped := enclose(*exec.scope)
+	return executeBlockIn(block, exec.withScope(scoped))
 }
 
-func executeBlockIn(block ast.Block, env *Environment) error {
+func executeBlockIn(block ast.Block, exec executor) error {
 	for _, stmt := range block.Statements {
-		if err := execute(stmt, env); err != nil {
+		if err := execute(stmt, exec); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func evaluate(expr ast.Expr, env *Environment) (any, error) {
+func evaluate(expr ast.Expr, exec executor) (any, error) {
 	switch expr := expr.(type) {
 	case ast.Literal:
 		return expr.Value, nil
 	case ast.Grouping:
-		return evaluate(expr.Expr, env)
+		return evaluate(expr.Expr, exec)
 	case ast.Unary:
-		return evalUnary(expr, env)
+		return evalUnary(expr, exec)
 	case ast.Binary:
-		return evalBinary(expr, env)
+		return evalBinary(expr, exec)
 	case ast.Variable:
-		val, ok := env.get(expr.Name)
+		val, ok := lookupVariable(exec, expr.Name)
 		if !ok {
 			return nil, &RuntimeError{
 				Token:   expr.Name,
@@ -179,12 +199,12 @@ func evaluate(expr ast.Expr, env *Environment) (any, error) {
 		}
 		return val, nil
 	case ast.Assign:
-		val, err := evaluate(expr.Value, env)
+		val, err := evaluate(expr.Value, exec)
 		if err != nil {
 			return nil, err
 		}
 
-		if !env.assign(expr.Name, val) {
+		if !assignVariable(exec, expr.Name, val) {
 			return nil, &RuntimeError{
 				Token:   expr.Name,
 				Kind:    NameError,
@@ -194,7 +214,7 @@ func evaluate(expr ast.Expr, env *Environment) (any, error) {
 
 		return val, nil
 	case ast.Logical:
-		left, err := evaluate(expr.Left, env)
+		left, err := evaluate(expr.Left, exec)
 		if err != nil {
 			return nil, err
 		}
@@ -209,16 +229,16 @@ func evaluate(expr ast.Expr, env *Environment) (any, error) {
 			}
 		}
 
-		return evaluate(expr.Right, env)
+		return evaluate(expr.Right, exec)
 	case ast.Call:
-		callee, err := evaluate(expr.Callee, env)
+		callee, err := evaluate(expr.Callee, exec)
 		if err != nil {
 			return nil, err
 		}
 
 		args := make([]any, len(expr.Arguments))
 		for i, arg := range expr.Arguments {
-			val, err := evaluate(arg, env)
+			val, err := evaluate(arg, exec)
 			if err != nil {
 				return nil, err
 			}
@@ -251,15 +271,17 @@ func evaluate(expr ast.Expr, env *Environment) (any, error) {
 				Params: expr.Params,
 				Body:   expr.Body,
 			},
-			Closure: *env,
+			Closure:    *exec.scope,
+			Globals:    exec.globals,
+			Resolution: exec.res,
 		}, nil
 	default:
 		panic(fmt.Errorf("logic error: no clause for expression %v", expr))
 	}
 }
 
-func evalUnary(expr ast.Unary, env *Environment) (any, error) {
-	right, err := evaluate(expr.Right, env)
+func evalUnary(expr ast.Unary, exec executor) (any, error) {
+	right, err := evaluate(expr.Right, exec)
 	if err != nil {
 		return nil, err
 	}
@@ -274,13 +296,13 @@ func evalUnary(expr ast.Unary, env *Environment) (any, error) {
 	panic("unreachable")
 }
 
-func evalBinary(expr ast.Binary, env *Environment) (any, error) {
-	left, err := evaluate(expr.Left, env)
+func evalBinary(expr ast.Binary, exec executor) (any, error) {
+	left, err := evaluate(expr.Left, exec)
 	if err != nil {
 		return nil, err
 	}
 
-	right, err := evaluate(expr.Right, env)
+	right, err := evaluate(expr.Right, exec)
 	if err != nil {
 		return nil, err
 	}
@@ -362,6 +384,24 @@ func evalBinary(expr ast.Binary, env *Environment) (any, error) {
 	}
 
 	panic("unreachable")
+}
+
+func assignVariable(exec executor, name token.Token, val any) bool {
+	distance, ok := exec.res.Distance(name)
+	if ok {
+		return exec.scope.assignAt(distance, name.Lexeme, val)
+	}
+
+	return exec.globals.assign(name, val)
+}
+
+func lookupVariable(exec executor, name token.Token) (any, bool) {
+	distance, ok := exec.res.Distance(name)
+	if ok {
+		return exec.scope.getAt(distance, name.Lexeme)
+	}
+
+	return exec.globals.get(name)
 }
 
 func comparable(l any, r any) (float64, float64, bool) {

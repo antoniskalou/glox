@@ -17,6 +17,7 @@ func (e *ResolverError) Error() string {
 }
 
 type Resolution struct {
+	// FIXME: Nystrom stores these as Expr, what do?
 	locals map[token.Token]int
 }
 

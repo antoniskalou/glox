@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/antoniskalou/glox/ast"
+	"github.com/antoniskalou/glox/resolver"
 )
 
 type Callable interface {
@@ -39,6 +40,8 @@ var clockFn = NativeFn{
 type LoxFn struct {
 	Declaration ast.Function
 	Closure     Environment
+	Globals     *Environment
+	Resolution  resolver.Resolution
 }
 
 func (f LoxFn) arity() int {
@@ -51,7 +54,11 @@ func (f LoxFn) call(args []any) (any, error) {
 		local = local.define(param.Lexeme, args[i])
 	}
 
-	err := executeBlockIn(f.Declaration.Body, &local)
+	err := executeBlockIn(f.Declaration.Body, executor{
+		scope:   &local,
+		globals: f.Globals,
+		res:     f.Resolution,
+	})
 	// explicit return, give the value back
 	if signal, ok := errors.AsType[*ReturnSignal](err); ok {
 		return signal.Value, nil

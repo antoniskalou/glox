@@ -84,14 +84,16 @@ func run(inter *interpreter.Interpreter, source string) error {
 	}
 
 	if debug {
-		fmt.Printf("%+v", ast)
+		fmt.Printf("[AST] %+v\n", ast)
 	}
 
 	res, err := resolver.New().Resolve(ast)
 	if err != nil {
 		return err
 	}
-	// fmt.Println("resolved with:", res)
+	if debug {
+		fmt.Printf("[RESOLVE] %+v\n", res)
+	}
 
 	return inter.Interpret(ast, res)
 }
